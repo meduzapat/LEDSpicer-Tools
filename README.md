@@ -14,6 +14,15 @@ Each tool lives in its own directory and is independent of LEDSpicer's code.
 | `main` | Releases (tagged through GitHub Releases). |
 | `development` | Trunk. Work branches off here and merges back through pull requests. |
 
+## Tests
+
+```bash
+composer install
+vendor/bin/phpunit
+```
+
+Tests mirror the tool directories under `tests/`; reusable mocks are in `tests/mocks/`, helpers in `tests/tools/`.
+
 ## License
 
 MIT, see [LICENSE](LICENSE). Generated data files are MIT as well.

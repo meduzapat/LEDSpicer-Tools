@@ -1,0 +1,26 @@
+name: Tests
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [development]
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lua5.4
+          composer install --no-interaction --no-progress
+
+      - name: Check Lua syntax
+        run: find . -path ./vendor -prune -o -name '*.lua' -print0 | xargs -0 -n1 luac5.4 -p
+
+      - name: Run unit tests
+        run: vendor/bin/phpunit
