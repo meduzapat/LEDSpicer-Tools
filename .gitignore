@@ -1,0 +1,45 @@
+# IDEs
+# Anjuta (gnome IDE)
+.anjuta*
+# Eclipse (PDT)
+.project
+.buildpath
+.settings/
+.metadata/
+.externalToolBuilders/
+# VS Code
+.vscode/
+*.code-workspace
+.history/
+*.vsix
+# JetBrains
+.idea/
+# NetBeans
+nbproject/
+# Vim / Emacs
+*.swp
+*.swo
+\#*\#
+
+# Common
+*~
+*.cache
+*.log
+*.tmp
+build/
+
+# PHP / Composer (composer.lock stays tracked)
+vendor/
+.phpunit.cache/
+.phpunit.result.cache
+coverage/
+
+# Generated tool output (per MAME version)
+results/
+cache/
+
+# Packages
+*.phar
+*.deb
+*.rpm
+*.gz*
