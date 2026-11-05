@@ -24,7 +24,7 @@ All data comes from the tool's own dynamic discovery.
 ./discover.php --help
 ```
 
-Runs every set with coins, or a list (`--sets a,b` or `--sets @file`), resumable: sets already in the results are skipped unless `--force`.
+Runs every set with coins, or a list (`--sets a,b` or `--sets @file`), resumable: sets already in the results are skipped unless `--force` (or `--retry-errors` for failed ones).
 Each run uses fresh temporary NVRAM/CFG directories and ignores the user's ini files and plugins; only the rompath is taken from MAME's configuration.
 Arguments after `--` are passed to MAME.
 
@@ -35,10 +35,10 @@ Earlier results (other versions, parent and BIOS-family sets) are used as hints 
 
 | File | Content |
 |---|---|
-| `results/<mame version>/results.tsv` | One line per set: status, reason and discovered data. |
-| `results/<mame version>/credits.dat` | Verified entries only, consumed by the MAME plugin. |
-| `results/<mame version>/logs/<set>.log` | MAME output of sets that ended in error. |
-| `cache/<mame version>/index.tsv` | Systems from `mame -listxml`, built once per version. |
+| `results/mame_<version>/results.tsv` | One line per set: status, reason and discovered data. |
+| `results/mame_<version>/credits.dat` | Verified entries only, consumed by the MAME plugin. |
+| `results/mame_<version>/logs/<set>.log` | MAME output of sets that ended in error. |
+| `cache/mame_<version>/index.tsv` | Systems from `mame -listxml`, built once per version. |
 
 ## License
 

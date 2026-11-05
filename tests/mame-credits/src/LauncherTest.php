@@ -23,7 +23,7 @@ final class LauncherTest extends TestCase {
 		stream_get_contents($pipes[1]);
 		$this->assertSame(0, proc_close($process));
 		$rows = [];
-		foreach (Tsv::read("$this->temp/results/0.999/results.tsv", Results::COLUMNS) as $row)
+		foreach (Tsv::read("$this->temp/results/mame_0999/results.tsv", Results::COLUMNS) as $row)
 			$rows[$row[0]] = "$row[1]:$row[2]";
 		return $rows;
 	}
@@ -41,7 +41,7 @@ final class LauncherTest extends TestCase {
 			'ok'       => 'found:boot_only',
 			'okclone'  => 'found:boot_only',
 		], $this->discover());
-		$this->assertFileExists("$this->temp/results/0.999/logs/crash.log");
+		$this->assertFileExists("$this->temp/results/mame_0999/logs/crash.log");
 	}
 
 	public function testPresentKeepsSetsAndClonesFoundInRompath(): void {
@@ -53,7 +53,14 @@ final class LauncherTest extends TestCase {
 
 	public function testResumeSkipsKnownSets(): void {
 		$this->discover('--sets', 'ok');
-		file_put_contents("$this->temp/results/0.999/results.tsv", str_replace('boot_only', 'kept', file_get_contents("$this->temp/results/0.999/results.tsv")));
+		file_put_contents("$this->temp/results/mame_0999/results.tsv", str_replace('boot_only', 'kept', file_get_contents("$this->temp/results/mame_0999/results.tsv")));
 		$this->assertSame(['ok' => 'found:kept', 'okclone' => 'found:boot_only'], $this->discover('--sets', 'ok,okclone'));
+	}
+
+	public function testRetryErrorsRunsOnlyFailedSets(): void {
+		$this->discover('--sets', 'ok,missing');
+		$path = "$this->temp/results/mame_0999/results.tsv";
+		file_put_contents($path, str_replace(['boot_only', 'missing_files'], ['kept', 'stale'], file_get_contents($path)));
+		$this->assertSame(['missing' => 'error:missing_files', 'ok' => 'found:kept'], $this->discover('--sets', 'ok,missing', '--retry-errors'));
 	}
 }

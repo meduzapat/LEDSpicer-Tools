@@ -35,8 +35,8 @@ final class Results {
 		$this->journal = fopen($path, 'a');
 	}
 
-	public function has(string $set): bool {
-		return isset($this->rows[$set]);
+	public function status(string $set): ?string {
+		return $this->rows[$set]['status'] ?? null;
 	}
 
 	/**

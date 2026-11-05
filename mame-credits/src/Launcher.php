@@ -23,7 +23,7 @@ final class Launcher {
 		private readonly Mame $mame,
 		private readonly string $script,
 	) {
-		$this->resultsDir = "{$options->data}/results/{$mame->version}";
+		$this->resultsDir = "{$options->data}/results/{$mame->folder}";
 		$this->tempRoot   = sys_get_temp_dir() . '/mame-credits-' . getmypid();
 	}
 
@@ -32,7 +32,7 @@ final class Launcher {
 	 */
 	public function run(): int {
 		$begin = microtime(true);
-		$cache = "{$this->options->data}/cache/{$this->mame->version}";
+		$cache = "{$this->options->data}/cache/{$this->mame->folder}";
 		foreach ([$cache, "$this->resultsDir/logs", $this->tempRoot] as $directory) {
 			if (!is_dir($directory))
 				mkdir($directory, 0755, true);
@@ -42,7 +42,7 @@ final class Launcher {
 		$results  = new Results("$this->resultsDir/results.tsv");
 		$queue    = [];
 		foreach ($this->select($machines) as $machine) {
-			if ($results->has($machine->name) && !$this->options->force)
+			if (!$this->options->force && !$this->isRetry($results->status($machine->name)))
 				continue;
 			$reason = $machine->skipReason();
 			if ($reason === null)
@@ -63,6 +63,13 @@ final class Launcher {
 			printf("%8d  %s\n", $count, $key);
 		printf("Elapsed %.1fs%s\n", microtime(true) - $begin, $this->interrupted ? ', interrupted' : '');
 		return $this->interrupted ? 130 : 0;
+	}
+
+	/**
+	 * Whether a set with this previous status runs again; null means never run.
+	 */
+	private function isRetry(?string $status): bool {
+		return $status === null || ($this->options->retryErrors && $status === Status::Error->value);
 	}
 
 	/**

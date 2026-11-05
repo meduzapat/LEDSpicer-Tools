@@ -26,12 +26,16 @@ final class Mame {
 	/// Release number, e.g. "0.264".
 	public readonly string $version;
 
+	/// Per-version folder name for results and cache, e.g. "mame_0264".
+	public readonly string $folder;
+
 	/// Effective rompath from the user's configuration, unexpanded.
 	public readonly string $rompath;
 
 	public function __construct(public readonly string $binary) {
 		$this->build   = trim(self::capture([$binary, '-version']));
 		$this->version = explode(' ', $this->build)[0];
+		$this->folder  = 'mame_' . str_replace('.', '', $this->version);
 		preg_match('/^rompath\s+(.*)$/m', self::capture([$binary, '-showconfig']), $match);
 		$this->rompath = trim($match[1]);
 	}

@@ -15,6 +15,7 @@ final class Options {
 		  --sets LIST     comma separated sets, or @FILE with one set per line (default: all)
 		  --present       only sets (or their parent) found in the rompath
 		  --force         run sets that already have a result
+		  --retry-errors  run sets whose result is an error
 		  --jobs N        parallel MAME processes (default: CPU count)
 		  --timeout S     wall clock seconds per set (default: 600)
 		  --seconds S     emulated seconds per set (default: 300)
@@ -29,9 +30,10 @@ final class Options {
 		$extra = [];
 
 	public bool
-		$present = false,
-		$force   = false,
-		$help    = false;
+		$present     = false,
+		$force       = false,
+		$retryErrors = false,
+		$help        = false;
 
 	public int
 		$jobs,
@@ -48,16 +50,17 @@ final class Options {
 		while ($args) {
 			$arg = array_shift($args);
 			match ($arg) {
-				'--'        => [$this->extra, $args] = [$args, []],
-				'--sets'    => $this->sets = self::sets(self::value($arg, $args)),
-				'--present' => $this->present = true,
-				'--force'   => $this->force = true,
-				'--jobs'    => $this->jobs = self::number($arg, $args),
-				'--timeout' => $this->timeout = self::number($arg, $args),
-				'--seconds' => $this->seconds = self::number($arg, $args),
-				'--data'    => $this->data = self::value($arg, $args),
-				'--help'    => $this->help = true,
-				default     => throw new \InvalidArgumentException("Unknown option: $arg"),
+				'--'             => [$this->extra, $args] = [$args, []],
+				'--sets'         => $this->sets = self::sets(self::value($arg, $args)),
+				'--present'      => $this->present = true,
+				'--force'        => $this->force = true,
+				'--retry-errors' => $this->retryErrors = true,
+				'--jobs'         => $this->jobs = self::number($arg, $args),
+				'--timeout'      => $this->timeout = self::number($arg, $args),
+				'--seconds'      => $this->seconds = self::number($arg, $args),
+				'--data'         => $this->data = self::value($arg, $args),
+				'--help'         => $this->help = true,
+				default          => throw new \InvalidArgumentException("Unknown option: $arg"),
 			};
 		}
 	}

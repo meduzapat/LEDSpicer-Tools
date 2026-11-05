@@ -14,7 +14,9 @@ final class ResultsTest extends TestCase {
 	public function testRowsSurviveWithoutSave(): void {
 		$results = new Results("$this->temp/r.tsv");
 		$results->add(['set' => 'b', 'status' => 'found', 'reason' => 'x']);
-		$this->assertTrue((new Results("$this->temp/r.tsv"))->has('b'));
+		$results = new Results("$this->temp/r.tsv");
+		$this->assertSame('found', $results->status('b'));
+		$this->assertNull($results->status('c'));
 	}
 
 	public function testSaveSortsAndKeepsLatestRow(): void {

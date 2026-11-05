@@ -16,6 +16,7 @@ final class MameTest extends TestCase {
 		$mame = self::mame();
 		$this->assertSame('0.999 (mock)', $mame->build);
 		$this->assertSame('0.999', $mame->version);
+		$this->assertSame('mame_0999', $mame->folder);
 		$this->assertStringEndsWith(';$MOCK_MISSING_DIR', $mame->rompath);
 	}
 
