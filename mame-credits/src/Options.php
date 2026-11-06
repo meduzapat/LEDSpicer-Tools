@@ -10,19 +10,19 @@ namespace LEDSpicerTools\MameCredits;
 final class Options {
 
 	public const USAGE = <<<'TXT'
-		Usage: discover.php [options] [-- extra MAME arguments]
+Usage: discover.php [options] [-- extra MAME arguments]
 
-		  --sets LIST     comma separated sets, or @FILE with one set per line (default: all)
-		  --present       only sets (or their parent) found in the rompath
-		  --force         run sets that already have a result
-		  --retry-errors  run sets whose result is an error
-		  --jobs N        parallel MAME processes (default: CPU count)
-		  --timeout S     wall clock seconds per set (default: 600)
-		  --seconds S     emulated seconds per set (default: 300)
-		  --data DIR      directory for results/ and cache/ (default: current directory)
-		  --help          this text
+  --sets LIST     comma separated sets, or @FILE with one set per line (default: all)
+  --present       only sets (or their parent) found in the rompath
+  --force         run sets that already have a result
+  --retry-errors  run sets whose result is an error
+  --jobs N        parallel MAME processes (default: CPU count)
+  --timeout S     wall clock seconds per set (default: 600)
+  --seconds S     emulated seconds per set (default: 300)
+  --data DIR      directory for results/ and cache/ (default: current directory)
+  --help          this text
 
-		TXT;
+TXT;
 
 	/** @var string[] */
 	public array

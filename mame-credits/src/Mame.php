@@ -37,6 +37,7 @@ final class Mame {
 		$this->build   = trim(self::capture([$binary, '-version']));
 		$this->version = explode(' ', $this->build)[0];
 		$this->folder  = 'mame_' . str_replace('.', '', $this->version);
+		$match = "";
 		preg_match('/^rompath\s+(.*)$/m', self::capture([$binary, '-showconfig']), $match);
 		$this->rompath = preg_replace_callback(
 			'/\$(?:\{(\w+)\}|(\w+))/',
@@ -83,7 +84,16 @@ final class Mame {
 	}
 
 	private static function run(array $command, array $stdout): void {
-		$process = proc_open($command, [0 => ['file', '/dev/null', 'r'], 1 => $stdout, 2 => ['file', '/dev/null', 'w']], $pipes);
+		$pipes = "";
+		$process = proc_open(
+			$command,
+			[
+				0 => ['file', '/dev/null', 'r'],
+				1 => $stdout,
+				2 => ['file', '/dev/null', 'w']
+			],
+			$pipes
+		);
 		$code    = proc_close($process);
 		if ($code !== 0)
 			throw new \RuntimeException(implode(' ', $command) . " failed with exit code $code");
