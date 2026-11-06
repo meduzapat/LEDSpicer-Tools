@@ -111,6 +111,36 @@ local function freePlaySwitches()
 	return switches
 end
 
+-- DIP switches LEDSpicer reports at launch, as sorted "kind=port/mask" references; the plugin reads
+-- their live settings by name. A dedicated free play switch is one of them.
+local function dipReferences(freePlay)
+	local function reference(kind, switch)
+		return string.format("%s=%s/%x", kind, switch.port.tag, switch.mask)
+	end
+	local list = {}
+	for _, entry in ipairs(freePlay) do
+		if entry.kind == "dip" then
+			list[#list + 1] = reference("freeplay", entry.switch)
+		end
+	end
+	for _, port in pairs(ioport.ports) do
+		for name, switch in pairs(port.fields) do
+			if switch.type_class == "dipswitch" then
+				for _, group in ipairs(patterns.dips) do
+					for _, pattern in ipairs(group) do
+						local slot = name:lower():match(pattern)
+						if slot then
+							list[#list + 1] = reference((group.kind:gsub("%%1", slot)), switch)
+						end
+					end
+				end
+			end
+		end
+	end
+	table.sort(list)
+	return table.concat(list, ",")
+end
+
 -- Inputs that may start a game for a player: its start input, then its buttons in order.
 local function startInputs(player)
 	local inputs = {field("START" .. player)}
@@ -395,6 +425,7 @@ local function discover()
 	local result = {freeplay = "none", lockout_suspected = "no", auto_start = "no"}
 
 	local switches = freePlaySwitches()
+	result.dips    = dipReferences(switches)
 	local disabled = false
 	for _, entry in ipairs(switches) do
 		result.freeplay         = entry.kind
