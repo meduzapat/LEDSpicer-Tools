@@ -22,5 +22,8 @@ jobs:
       - name: Check Lua syntax
         run: find . -path ./vendor -prune -o -name '*.lua' -print0 | xargs -0 -n1 luac5.4 -p
 
-      - name: Run unit tests
+      - name: Run Lua unit tests
+        run: find tests -name '*Test.lua' -print0 | xargs -0 -n1 lua5.4
+
+      - name: Run PHP unit tests
         run: vendor/bin/phpunit

@@ -18,7 +18,7 @@ final class Mame {
 	];
 
 	/// Writable directories redirected into the per-run temporary directory.
-	private const RUN_DIRECTORIES = ['nvram', 'cfg', 'diff'];
+	private const RUN_DIRECTORIES = ['nvram', 'cfg', 'diff', 'snapshot'];
 
 	/// Full build string, e.g. "0.264 (mame0264-140-gd062c313a35-dirty)".
 	public readonly string $build;

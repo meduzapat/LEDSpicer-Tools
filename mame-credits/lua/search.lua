@@ -1,0 +1,153 @@
+-- Credit counter search, independent of MAME: works on RAM snapshots.
+-- A snapshot is a list of strings, one per scanned region.
+-- A candidate is a byte that stays still while idle and steps a constant number of credits
+-- (binary or BCD) every `spacing` coins: the coinage is `spacing` coins for `step` credits.
+
+local Search = {}
+Search.__index = Search
+
+-- Bytes compared at once when looking for changes.
+local CHUNK = 64
+
+-- Highest coins per step expected; a candidate that does not step again within it is dropped.
+local MAX_SPACING = 4
+
+-- Highest credits per step expected.
+local MAX_STEP = 9
+
+-- Offsets (1 based) where two equally long strings differ.
+function Search.diff(a, b)
+	local changed = {}
+	for first = 1, #a, CHUNK do
+		local last = first + CHUNK - 1
+		if a:sub(first, last) ~= b:sub(first, last) then
+			for offset = first, math.min(last, #a) do
+				if a:byte(offset) ~= b:byte(offset) then
+					changed[#changed + 1] = offset
+				end
+			end
+		end
+	end
+	return changed
+end
+
+function Search.isBcd(value)
+	return value & 0x0f <= 9 and value >> 4 <= 9
+end
+
+function Search.bcdDecode(value)
+	return (value >> 4) * 10 + (value & 0x0f)
+end
+
+local function step(credits)
+	return credits >= 1 and credits <= MAX_STEP and credits or nil
+end
+
+-- Credits added by old -> new per encoding, e.g. {bin = 7, bcd = 1} for 0x09 -> 0x10.
+local function steps(old, new)
+	return {
+		bin = step((new - old) & 0xff),
+		bcd = Search.isBcd(old) and Search.isBcd(new) and step(Search.bcdDecode(new) - Search.bcdDecode(old)) or nil,
+	}
+end
+
+function Search.new()
+	return setmetatable({candidates = {}, coins = 0}, Search)
+end
+
+local function key(region, offset)
+	return region << 32 | offset
+end
+
+function Search.split(candidate)
+	return candidate >> 32, candidate & 0xffffffff
+end
+
+-- Drops candidates that changed without input.
+function Search:idle(before, after)
+	for candidate in pairs(self.candidates) do
+		local region, offset = Search.split(candidate)
+		if before[region]:byte(offset) ~= after[region]:byte(offset) then
+			self.candidates[candidate] = nil
+		end
+	end
+end
+
+-- Adds every byte that stepped credits and is not a candidate yet.
+function Search:seed(before, after)
+	for region = 1, #before do
+		for _, offset in ipairs(Search.diff(before[region], after[region])) do
+			local candidate = key(region, offset)
+			local encoding  = steps(before[region]:byte(offset), after[region]:byte(offset))
+			if next(encoding) and not self.candidates[candidate] then
+				self.candidates[candidate] = {value = after[region]:byte(offset), last = self.coins, changes = 1, encoding = encoding}
+			end
+		end
+	end
+end
+
+-- Applies one coin: advances or drops candidates, then seeds new ones.
+function Search:coin(before, after)
+	self.coins = self.coins + 1
+	for candidate, state in pairs(self.candidates) do
+		local region, offset = Search.split(candidate)
+		local new     = after[region]:byte(offset)
+		local elapsed = self.coins - state.last
+		if new == state.value then
+			if elapsed >= (state.spacing or MAX_SPACING) then
+				self.candidates[candidate] = nil
+			end
+		else
+			local encoding = steps(state.value, new)
+			for name, credits in pairs(encoding) do
+				if state.encoding[name] ~= credits then
+					encoding[name] = nil
+				end
+			end
+			if not next(encoding) or (state.spacing or elapsed) ~= elapsed then
+				self.candidates[candidate] = nil
+			else
+				state.spacing, state.value, state.last, state.encoding = elapsed, new, self.coins, encoding
+				state.changes = state.changes + 1
+			end
+		end
+	end
+	self:seed(before, after)
+end
+
+function Search:count()
+	local count = 0
+	for _ in pairs(self.candidates) do
+		count = count + 1
+	end
+	return count
+end
+
+-- Candidates that stepped at least `changes` times, as a list of {candidate, state}.
+function Search:confirmed(changes)
+	local list = {}
+	for candidate, state in pairs(self.candidates) do
+		if state.changes >= changes then
+			list[#list + 1] = {candidate = candidate, state = state}
+		end
+	end
+	return list
+end
+
+-- Shallow copy of the candidate states, to undo coins that hit the credit limit.
+function Search:save()
+	local copy = {}
+	for candidate, state in pairs(self.candidates) do
+		copy[candidate] = {
+			value = state.value, last = state.last, changes = state.changes, spacing = state.spacing,
+			encoding = {bin = state.encoding.bin, bcd = state.encoding.bcd},
+		}
+	end
+	return {candidates = copy, coins = self.coins}
+end
+
+function Search:restore(saved)
+	self.candidates, self.coins = saved.candidates, saved.coins
+end
+
+return Search
