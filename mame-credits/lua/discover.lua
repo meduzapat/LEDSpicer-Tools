@@ -7,19 +7,25 @@ if MAMECREDITS_STARTED then
 end
 MAMECREDITS_STARTED = true
 
-local Search = dofile(debug.getinfo(1, "S").source:match("^@(.-)[^/]*$") .. "search.lua")
+local here     = debug.getinfo(1, "S").source:match("^@(.-)[^/]*$")
+local Search   = dofile(here .. "search.lua")
+local patterns = dofile(here .. "patterns.lua")
 
 -- Emulated seconds.
-local IDLE     = 1.0  -- quiet window that exposes self changing bytes
-local HOLD     = 0.1  -- coin switch closed
-local SETTLE   = 1.0  -- after the coin, before reading the result
-local BOOT_MAX = 90   -- coins inserted until a counter is confirmed
+local IDLE         = 1.0  -- quiet window that exposes self changing bytes
+local HOLD         = 0.1  -- coin switch closed
+local SETTLE       = 1.0  -- after the coin, before reading the result
+local START_HOLD   = 0.5  -- start button pressed; shorter presses are missed (tmnt)
+local START_SETTLE = 3.0  -- after the start button, before reading the result
+local BOOT_MAX     = 90   -- coins inserted until a counter is confirmed, also after a reset
 -- Longer than the time Search's MAX_SPACING coins take: slow timers that look like
 -- "+1 every few coins" change in it.
 local LONG_IDLE = 10
 
 local CONFIRM_CHANGES = 3  -- credit steps a candidate needs to count as found
 local ENCODE_CREDITS  = 10 -- credit count that separates BCD (0x10) from binary (0x0a)
+local MAX_BUTTONS     = 8  -- player buttons tried as start when there is no start input
+local START2_CREDITS  = 4  -- credits needed before the second player start
 
 local machine = manager.machine
 local ioport  = machine.ioport
@@ -39,14 +45,75 @@ local function report(values)
 	machine:exit()
 end
 
-local function field(token)
+-- Token with the player: without it every player's button 1 is "P1_BUTTON1".
+local function token(input)
+	return ioport:input_type_to_token(input.type, input.player)
+end
+
+local function field(name)
 	for _, port in pairs(ioport.ports) do
 		for _, candidate in pairs(port.fields) do
-			if ioport:input_type_to_token(candidate.type) == token then
+			if token(candidate) == name then
 				return candidate
 			end
 		end
 	end
+end
+
+local function matches(text, list)
+	text = text:lower()
+	for _, pattern in ipairs(list) do
+		if text:find(pattern) then
+			return true
+		end
+	end
+	return false
+end
+
+local function isFreePlay(text)
+	return matches(text, patterns.freeplay.include) and not matches(text, patterns.freeplay.exclude)
+end
+
+-- Free play DIP switches: a dedicated switch ("dip") or a coinage setting ("dip_coinage").
+-- Each entry carries the setting that turns free play off.
+local function freePlaySwitches()
+	local switches = {}
+	for _, port in pairs(ioport.ports) do
+		for name, switch in pairs(port.fields) do
+			if switch.type_class == "dipswitch" then
+				local off, free
+				for value, setting in pairs(switch.settings) do
+					if matches(setting, patterns.off) then
+						off = off or value
+					end
+					if isFreePlay(setting) then
+						free = value
+					end
+				end
+				if isFreePlay(name) and off then
+					switches[#switches + 1] = {kind = "dip", switch = switch, off = off, on = switch.defvalue ~= off}
+				elseif free then
+					local paid
+					for value, setting in pairs(switch.settings) do
+						if matches(setting, patterns.coin1) or (not paid and not isFreePlay(setting)) then
+							paid = value
+						end
+					end
+					switches[#switches + 1] = {kind = "dip_coinage", switch = switch, off = paid, on = switch.defvalue == free}
+				end
+			end
+		end
+	end
+	return switches
+end
+
+-- Inputs that may start a game for a player: its start input, then its buttons in order.
+local function startInputs(player)
+	local inputs = {field("START" .. player)}
+	for number = 1, MAX_BUTTONS do
+		inputs[#inputs + 1] = field("P" .. player .. "_BUTTON" .. number)
+	end
+	return inputs
 end
 
 -- Readable RAM of every address space, each share once; shares no space maps are read directly.
@@ -61,10 +128,12 @@ local function regions()
 					if share then
 						mapped[share] = true
 					end
+					local first = entry.address_start
 					list[#list + 1] = {
-						cpu = tag, space = name, first = entry.address_start, last = entry.address_end,
+						cpu = tag, space = name, first = first,
 						rank = (tag == ":maincpu" and 0 or 2) + (entry.write.handlertype == "ram" and 0 or 1),
-						read = function() return space:read_range(entry.address_start, entry.address_end, 8) end,
+						read = function() return space:read_range(first, entry.address_end, 8) end,
+						peek = function(offset) return space:read_u8(first + offset - 1) end,
 					}
 				end
 			end
@@ -73,7 +142,7 @@ local function regions()
 	for tag, share in pairs(machine.memory.shares) do
 		if not mapped[tag:match("[^:]+$")] then
 			list[#list + 1] = {
-				cpu = tag, space = "share", first = 0, last = share.size - 1, rank = 4,
+				cpu = tag, space = "share", first = 0, rank = 4,
 				read = function()
 					local parts = {}
 					for first = 0, share.size - 1, 4096 do
@@ -85,6 +154,7 @@ local function regions()
 					end
 					return table.concat(parts)
 				end,
+				peek = function(offset) return share:read_u8(offset - 1) end,
 			}
 		end
 	end
@@ -106,49 +176,54 @@ local function wait(seconds)
 	end
 end
 
-local function pulse(switch)
+local function press(switch, seconds)
 	switch:set_value(1)
-	wait(HOLD)
+	wait(seconds)
 	switch:set_value(0)
 end
 
-local function encodingName(encoding)
-	return encoding.bin and encoding.bcd and "any" or encoding.bcd and "bcd" or "bin"
+local function softReset()
+	machine:soft_reset()
+	wait(SETTLE)
 end
 
-local function decode(state)
-	return encodingName(state.encoding) == "bcd" and Search.bcdDecode(state.value) or state.value
+-- A found counter: where it is and how it counts.
+local function counter(list, candidate, state)
+	local index, offset = Search.split(candidate)
+	local region = list[index]
+	return {
+		candidate = candidate, region = region, offset = offset, address = region.first + offset - 1,
+		encoding = Search.encodingName(state.encoding), credits = state.encoding.bcd or state.encoding.bin,
+		spacing = state.spacing,
+	}
 end
 
-local function credits(state)
-	return state.encoding.bcd or state.encoding.bin
+local function value(found)
+	return Search.decode(found.region.peek(found.offset), found.encoding)
 end
 
--- Most plausible candidate: fewest credits per step (coinage defaults to 1 coin, 1 credit),
+-- Most plausible first: fewest credits per step (coinage defaults to 1 coin, 1 credit),
 -- then the region rank, then the lowest address.
-local function best(list, confirmed)
-	table.sort(confirmed, function(a, b)
-		local ra, oa = Search.split(a.candidate)
-		local rb, ob = Search.split(b.candidate)
-		if credits(a.state) ~= credits(b.state) then
-			return credits(a.state) < credits(b.state)
+local function sort(counters)
+	table.sort(counters, function(a, b)
+		if a.credits ~= b.credits then
+			return a.credits < b.credits
 		end
-		if list[ra].rank ~= list[rb].rank then
-			return list[ra].rank < list[rb].rank
+		if a.region.rank ~= b.region.rank then
+			return a.region.rank < b.region.rank
 		end
-		return list[ra].first + oa < list[rb].first + ob
+		return a.address < b.address
 	end)
-	return confirmed[1]
+	return counters
 end
 
-local function discover()
-	local coin = field("COIN1")
-	if not coin then
-		return {status = "found", reason = "no_coin_field"}
-	end
-	local list   = regions()
-	local search = Search.new()
-	local before = snapshot(list)
+-- Coins until bytes step like a credit counter; returns them sorted, whether the credit limit was hit
+-- and the seconds the game took to count credits (its boot time, at most).
+local function findCounters(list, coin)
+	local search   = Search.new()
+	local before   = snapshot(list)
+	local began    = emu.time()
+	local deadline = began + BOOT_MAX
 
 	local function idle(seconds)
 		wait(seconds)
@@ -160,32 +235,41 @@ local function discover()
 	-- One cycle: idle window, then a coin.
 	local function cycle()
 		idle(IDLE)
-		pulse(coin)
+		press(coin, HOLD)
 		wait(SETTLE)
 		local after = snapshot(list)
 		search:coin(before, after)
 		before = after
 	end
 
+	local function found()
+		local counters = {}
+		for _, entry in ipairs(search:confirmed(CONFIRM_CHANGES)) do
+			counters[#counters + 1] = counter(list, entry.candidate, entry.state)
+		end
+		return sort(counters)
+	end
+
 	repeat
 		cycle()
-		if #search:confirmed(CONFIRM_CHANGES) > 0 then
+		if #found() > 0 then
 			idle(LONG_IDLE)
 		end
-	until #search:confirmed(CONFIRM_CHANGES) > 0 or emu.time() > BOOT_MAX
-	if #search:confirmed(CONFIRM_CHANGES) == 0 then
-		return {status = "found", reason = "no_reaction"}
+	until #found() > 0 or emu.time() > deadline
+	if #found() == 0 then
+		return {}, false
 	end
+	local boot = emu.time() - began
 
 	-- More credits until BCD and binary differ, or the game stops accepting them.
 	local saturated = false
 	while not saturated do
-		local leader = best(list, search:confirmed(CONFIRM_CHANGES))
-		if decode(leader.state) >= ENCODE_CREDITS then
+		local leader = found()[1]
+		if value(leader) >= ENCODE_CREDITS then
 			break
 		end
 		local saved = search:save()
-		for _ = 1, leader.state.spacing do
+		for _ = 1, leader.spacing do
 			cycle()
 		end
 		-- The leader stopping while coins go in is the credit limit, not a wrong candidate.
@@ -197,21 +281,135 @@ local function discover()
 
 	-- Candidates confirmed while counting up to ENCODE_CREDITS have not seen a long idle yet.
 	idle(LONG_IDLE)
-	local confirmed = search:confirmed(CONFIRM_CHANGES)
-	if #confirmed == 0 then
-		return {status = "found", reason = "no_reaction"}
+	return found(), saturated, boot
+end
+
+-- Whether `coin` adds credits to a counter.
+local function adds(found, coin)
+	local start = value(found)
+	for _ = 1, found.spacing do
+		press(coin, HOLD)
+		wait(SETTLE + IDLE)
 	end
-	local chosen = best(list, confirmed)
-	local region, offset = Search.split(chosen.candidate)
-	return {
-		status = "found", reason = "coins_only",
-		cpu = list[region].cpu, space = list[region].space,
-		address = string.format("%x", list[region].first + offset - 1), size = 1,
-		encoding = encodingName(chosen.state.encoding),
-		max_credits = saturated and decode(chosen.state) or "",
-		coins_per_credit = chosen.state.spacing .. "/" .. credits(chosen.state),
-		candidates = #confirmed,
-	}
+	return value(found) > start
+end
+
+-- After a reset: waits the boot time, then coins until the counter holds `wanted` credits.
+-- Games may count coins before they accept a start, and may keep their credits through a reset.
+local function ready(found, coin, wanted, boot)
+	wait(boot)
+	local deadline = emu.time() + BOOT_MAX
+	while value(found) < wanted and emu.time() < deadline do
+		press(coin, HOLD)
+		wait(SETTLE + IDLE)
+	end
+	return value(found) >= wanted
+end
+
+-- Credits a counter lost from byte `old`; a counter still "any" takes the encoding that explains
+-- the smaller loss (0x10 -> 0x09 is 1 credit in BCD, 7 in binary).
+local function spent(found, old)
+	local new = found.region.peek(found.offset)
+	if found.encoding ~= "any" then
+		return Search.decode(old, found.encoding) - Search.decode(new, found.encoding)
+	end
+	local bin, bcd = old - new, Search.isBcd(old) and Search.isBcd(new) and Search.bcdDecode(old) - Search.bcdDecode(new)
+	if bcd and bcd > 0 and bcd < bin then
+		found.encoding = "bcd"
+		return bcd
+	end
+	return bin
+end
+
+-- Presses each input until counters lose credits; returns the input token, the cost and the counters that paid.
+local function start(counters, inputs)
+	for _, input in ipairs(inputs) do
+		local before = {}
+		for index, found in ipairs(counters) do
+			before[index] = found.region.peek(found.offset)
+		end
+		press(input, START_HOLD)
+		wait(START_SETTLE)
+		local paid, cost = {}, nil
+		for index, found in ipairs(counters) do
+			local loss = spent(found, before[index])
+			if loss > 0 and (cost == nil or loss == cost) then
+				cost, paid[#paid + 1] = loss, found
+			end
+		end
+		if cost then
+			return token(input), cost, paid
+		end
+	end
+end
+
+local function discover()
+	local coins = {field("COIN1"), field("COIN2")}
+	if not coins[1] then
+		return {status = "found", reason = "no_coin_field"}
+	end
+	local result = {freeplay = "none", lockout_suspected = "no"}
+
+	local switches = freePlaySwitches()
+	local disabled = false
+	for _, entry in ipairs(switches) do
+		result.freeplay         = entry.kind
+		result.freeplay_default = entry.on and "on" or "off"
+		if entry.on then
+			if not entry.off then
+				return {status = "found", reason = "freeplay_only", freeplay = entry.kind, freeplay_default = "on"}
+			end
+			entry.switch.user_value, disabled = entry.off, true
+		end
+	end
+	if disabled then
+		softReset()
+	end
+
+	local list = regions()
+	local counters, saturated, boot = findCounters(list, coins[1])
+	if #counters == 0 then
+		machine.options.entries.coin_lockout:value(false)
+		counters, saturated, boot = findCounters(list, coins[1])
+		result.lockout_suspected = #counters > 0 and "yes" or "no"
+	end
+	if #counters == 0 then
+		result.status, result.reason = "found", "no_reaction"
+		return result
+	end
+
+	local token, cost, paid = start(counters, startInputs(1))
+	local chosen = (paid or counters)[1]
+	result.cpu, result.space = chosen.region.cpu, chosen.region.space
+	result.address, result.size, result.encoding = string.format("%x", chosen.address), 1, chosen.encoding
+	result.max_credits      = saturated and value(chosen) or ""
+	result.coins_per_credit = chosen.spacing .. "/" .. chosen.credits
+	result.candidates       = #(paid or counters)
+	if not token then
+		result.status, result.reason = "found", "no_start"
+		return result
+	end
+	result.start1_field, result.start1_cost = token, cost
+
+	-- Second player: shared credits, or its own counter fed by its own coin slot.
+	result.credit_scope = "shared"
+	local second, coin2 = chosen, coins[1]
+	if coins[2] and not adds(chosen, coins[2]) then
+		local own = findCounters(list, coins[2])
+		if #own > 0 then
+			result.credit_scope, second, coin2 = "per_player", own[1], coins[2]
+			result.address = result.address .. string.format("|%x", second.address)
+		end
+	end
+	local inputs = startInputs(2)
+	if #inputs > 0 then
+		softReset()
+		if ready(second, coin2, START2_CREDITS, boot) then
+			result.start2_field, result.start2_cost = start({second}, inputs)
+		end
+	end
+	result.status, result.reason, result.method = "success", "", "search"
+	return result
 end
 
 local worker = coroutine.create(function()

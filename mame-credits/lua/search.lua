@@ -39,6 +39,16 @@ function Search.bcdDecode(value)
 	return (value >> 4) * 10 + (value & 0x0f)
 end
 
+-- "bin", "bcd" or "any" (both explain every step seen) for a candidate's encoding set.
+function Search.encodingName(encoding)
+	return encoding.bin and encoding.bcd and "any" or encoding.bcd and "bcd" or "bin"
+end
+
+-- Credits a byte holds under an encoding name.
+function Search.decode(value, name)
+	return name == "bcd" and Search.bcdDecode(value) or value
+end
+
 local function step(credits)
 	return credits >= 1 and credits <= MAX_STEP and credits or nil
 end

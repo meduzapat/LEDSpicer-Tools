@@ -84,7 +84,7 @@ final class Mame {
 	}
 
 	private static function run(array $command, array $stdout): void {
-		$pipes = "";
+		$pipes = [];
 		$process = proc_open(
 			$command,
 			[
@@ -94,7 +94,7 @@ final class Mame {
 			],
 			$pipes
 		);
-		$code    = proc_close($process);
+		$code = proc_close($process);
 		if ($code !== 0)
 			throw new \RuntimeException(implode(' ', $command) . " failed with exit code $code");
 	}

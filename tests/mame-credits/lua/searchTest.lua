@@ -35,6 +35,12 @@ test("bcd helpers", function()
 	assert(Search.bcdDecode(0x42) == 42)
 end)
 
+test("encoding names and decoding", function()
+	assert(Search.encodingName({bin = 1, bcd = 1}) == "any")
+	assert(Search.encodingName({bcd = 1}) == "bcd" and Search.encodingName({bin = 1}) == "bin")
+	assert(Search.decode(0x12, "bcd") == 12 and Search.decode(0x12, "any") == 0x12)
+end)
+
 test("one credit per coin, BCD told apart at ten", function()
 	local state = only(feed(Search.new(), {0x07, 0x08, 0x09, 0x10, 0x11}))
 	assert(state.spacing == 1 and state.encoding.bcd == 1 and not state.encoding.bin)
