@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<mame build="0.999 (mock)">
+	<machine name="ok" sourcefile="mock/ok.cpp">
+		<description>Runs and reports</description>
+		<biosset name="bios1" description="First"/>
+		<biosset name="bios2" description="Second" default="yes"/>
+		<input players="2" coins="2"><control type="joy"/></input>
+		<driver status="imperfect" emulation="good" savestate="supported"/>
+	</machine>
+	<machine name="okclone" sourcefile="mock/ok.cpp" cloneof="ok" romof="ok">
+		<input players="2" coins="2"/>
+		<driver status="good" emulation="good" savestate="supported"/>
+	</machine>
+	<machine name="missing" sourcefile="mock/other.cpp"><input players="1" coins="1"/></machine>
+	<machine name="crash" sourcefile="mock/other.cpp"><input players="1" coins="1"/></machine>
+	<machine name="hang" sourcefile="mock/other.cpp"><input players="1" coins="1"/></machine>
+	<machine name="noresult" sourcefile="mock/other.cpp"><input players="1" coins="1"/></machine>
+	<machine name="abios" sourcefile="mock/other.cpp" isbios="yes"><input players="1" coins="1"/></machine>
+	<machine name="adevice" sourcefile="mock/dev.cpp" isdevice="yes" runnable="no"/>
+	<machine name="mech" sourcefile="mock/other.cpp" ismechanical="yes"><input players="1" coins="1"/></machine>
+	<machine name="console" sourcefile="mock/other.cpp"><input players="2"/></machine>
+</mame>
