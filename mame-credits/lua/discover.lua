@@ -284,14 +284,14 @@ local function findCounters(list, coin)
 	return found(), saturated, boot
 end
 
--- Whether `coin` adds credits to a counter.
+-- Credits `coin` adds to a counter over the counter's coins per step; slots may differ (rodland).
 local function adds(found, coin)
 	local start = value(found)
 	for _ = 1, found.spacing do
 		press(coin, HOLD)
 		wait(SETTLE + IDLE)
 	end
-	return value(found) > start
+	return value(found) - start
 end
 
 -- After a reset: waits the boot time, then coins until the counter holds `wanted` credits.
@@ -322,7 +322,9 @@ local function spent(found, old)
 end
 
 -- Presses each input until counters lose credits; returns the input token, the cost and the counters that paid.
+-- Without a loss, returns whether any input changed a counter at all.
 local function start(counters, inputs)
+	local changed = false
 	for _, input in ipairs(inputs) do
 		local before = {}
 		for index, found in ipairs(counters) do
@@ -332,6 +334,7 @@ local function start(counters, inputs)
 		wait(START_SETTLE)
 		local paid, cost = {}, nil
 		for index, found in ipairs(counters) do
+			changed = changed or found.region.peek(found.offset) ~= before[index]
 			local loss = spent(found, before[index])
 			if loss > 0 and (cost == nil or loss == cost) then
 				cost, paid[#paid + 1] = loss, found
@@ -341,6 +344,7 @@ local function start(counters, inputs)
 			return token(input), cost, paid
 		end
 	end
+	return nil, changed
 end
 
 local function discover()
@@ -379,14 +383,16 @@ local function discover()
 	end
 
 	local token, cost, paid = start(counters, startInputs(1))
+	paid = token and paid
 	local chosen = (paid or counters)[1]
 	result.cpu, result.space = chosen.region.cpu, chosen.region.space
 	result.address, result.size, result.encoding = string.format("%x", chosen.address), 1, chosen.encoding
 	result.max_credits      = saturated and value(chosen) or ""
 	result.coins_per_credit = chosen.spacing .. "/" .. chosen.credits
 	result.candidates       = #(paid or counters)
+	-- Coins that only ever add (health, play time) and inputs that never touch them: no credit is spent.
 	if not token then
-		result.status, result.reason = "found", "no_start"
+		result.status, result.reason = "found", cost and "no_start" or "coin_buys_play"
 		return result
 	end
 	result.start1_field, result.start1_cost = token, cost
@@ -394,18 +400,26 @@ local function discover()
 	-- Second player: shared credits, or its own counter fed by its own coin slot.
 	result.credit_scope = "shared"
 	local second, coin2 = chosen, coins[1]
-	if coins[2] and not adds(chosen, coins[2]) then
+	local added = coins[2] and adds(chosen, coins[2])
+	if added and added > 0 then
+		result.coins_per_credit = result.coins_per_credit .. "|" .. chosen.spacing .. "/" .. added
+	elseif added then
 		local own = findCounters(list, coins[2])
 		if #own > 0 then
 			result.credit_scope, second, coin2 = "per_player", own[1], coins[2]
-			result.address = result.address .. string.format("|%x", second.address)
+			result.address          = result.address .. string.format("|%x", second.address)
+			result.coins_per_credit = result.coins_per_credit .. "|" .. second.spacing .. "/" .. second.credits
 		end
 	end
 	local inputs = startInputs(2)
 	if #inputs > 0 then
 		softReset()
+		local field2, cost2 = nil, nil
 		if ready(second, coin2, START2_CREDITS, boot) then
-			result.start2_field, result.start2_cost = start({second}, inputs)
+			field2, cost2 = start({second}, inputs)
+		end
+		if field2 then
+			result.start2_field, result.start2_cost = field2, cost2
 		end
 	end
 	result.status, result.reason, result.method = "success", "", "search"
