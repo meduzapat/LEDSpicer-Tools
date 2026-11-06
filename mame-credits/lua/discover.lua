@@ -332,12 +332,16 @@ local function start(counters, inputs)
 		end
 		press(input, START_HOLD)
 		wait(START_SETTLE)
+		-- The smallest loss wins: display copies (ASCII digits, tiles) fall further when the text clears.
 		local paid, cost = {}, nil
 		for index, found in ipairs(counters) do
 			changed = changed or found.region.peek(found.offset) ~= before[index]
 			local loss = spent(found, before[index])
-			if loss > 0 and (cost == nil or loss == cost) then
-				cost, paid[#paid + 1] = loss, found
+			if loss > 0 and (cost == nil or loss < cost) then
+				cost, paid = loss, {}
+			end
+			if loss > 0 and loss == cost then
+				paid[#paid + 1] = found
 			end
 		end
 		if cost then
