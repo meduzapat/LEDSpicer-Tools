@@ -46,6 +46,11 @@ test("one credit per coin, BCD told apart at ten", function()
 	assert(state.spacing == 1 and state.encoding.bcd == 1 and not state.encoding.bin)
 end)
 
+test("one digit per byte wraps at ten", function()
+	local state = only(feed(Search.new(), {0x07, 0x08, 0x09, 0x00, 0x01}))
+	assert(Search.encodingName(state.encoding) == "digits")
+end)
+
 test("ambiguous encoding below ten", function()
 	local state = only(feed(Search.new(), {0, 1, 2, 3}))
 	assert(state.encoding.bin == 1 and state.encoding.bcd == 1)

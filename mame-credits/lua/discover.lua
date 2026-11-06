@@ -187,19 +187,39 @@ local function softReset()
 	wait(SETTLE)
 end
 
--- A found counter: where it is and how it counts.
+local function isDigit(value)
+	return value >= 1 and value <= 9
+end
+
+-- A found counter: where it is and how it counts, nil for a digit without tens (a display digit
+-- cycling 0-9). A "digits" counter has wrapped past 9, so its tens digit is the neighbour holding 1-9:
+-- before it (address = tens, "digits") or after it ("digits_le").
 local function counter(list, candidate, state)
 	local index, offset = Search.split(candidate)
-	local region = list[index]
-	return {
-		candidate = candidate, region = region, offset = offset, address = region.first + offset - 1,
-		encoding = Search.encodingName(state.encoding), credits = state.encoding.bcd or state.encoding.bin,
-		spacing = state.spacing,
+	local region   = list[index]
+	local found    = {
+		candidate = candidate, state = state, region = region, offset = offset, address = region.first + offset - 1, size = 1,
+		encoding = Search.encodingName(state.encoding),
+		credits = state.encoding.bcd or state.encoding.bin or state.encoding.digit, spacing = state.spacing,
 	}
+	if found.encoding == "digits" then
+		found.tens = isDigit(region.peek(offset - 1)) and offset - 1 or isDigit(region.peek(offset + 1)) and offset + 1
+		if not found.tens then
+			return nil
+		end
+		found.size = 2
+		if found.tens < offset then
+			found.address = found.address - 1
+		else
+			found.encoding = "digits_le"
+		end
+	end
+	return found
 end
 
 local function value(found)
-	return Search.decode(found.region.peek(found.offset), found.encoding)
+	local ones = Search.decode(found.region.peek(found.offset), found.encoding)
+	return found.tens and found.region.peek(found.tens) * 10 + ones or ones
 end
 
 -- Most plausible first: fewest credits per step (coinage defaults to 1 coin, 1 credit),
@@ -262,10 +282,10 @@ local function findCounters(list, coin)
 	local boot = emu.time() - began
 
 	-- More credits until BCD and binary differ, or the game stops accepting them.
-	local saturated = false
+	local saturated, limit = false, emu.time() + BOOT_MAX
 	while not saturated do
 		local leader = found()[1]
-		if value(leader) >= ENCODE_CREDITS then
+		if not leader or value(leader) >= ENCODE_CREDITS or emu.time() > limit then
 			break
 		end
 		local saved = search:save()
@@ -273,7 +293,8 @@ local function findCounters(list, coin)
 			cycle()
 		end
 		-- The leader stopping while coins go in is the credit limit, not a wrong candidate.
-		if not search.candidates[leader.candidate] then
+		-- A dropped leader may be seeded again by the same coin: compare the state, not the key.
+		if search.candidates[leader.candidate] ~= leader.state then
 			search:restore(saved)
 			saturated = true
 		end
@@ -306,13 +327,14 @@ local function ready(found, coin, wanted, boot)
 	return value(found) >= wanted
 end
 
--- Credits a counter lost from byte `old`; a counter still "any" takes the encoding that explains
--- the smaller loss (0x10 -> 0x09 is 1 credit in BCD, 7 in binary).
+-- Credits a counter lost since `old` ({byte, credits}); a counter still "any" takes the encoding
+-- that explains the smaller loss (0x10 -> 0x09 is 1 credit in BCD, 7 in binary).
 local function spent(found, old)
-	local new = found.region.peek(found.offset)
 	if found.encoding ~= "any" then
-		return Search.decode(old, found.encoding) - Search.decode(new, found.encoding)
+		return old.credits - value(found)
 	end
+	old = old.byte
+	local new = found.region.peek(found.offset)
 	local bin, bcd = old - new, Search.isBcd(old) and Search.isBcd(new) and Search.bcdDecode(old) - Search.bcdDecode(new)
 	if bcd and bcd > 0 and bcd < bin then
 		found.encoding = "bcd"
@@ -328,14 +350,14 @@ local function start(counters, inputs)
 	for _, input in ipairs(inputs) do
 		local before = {}
 		for index, found in ipairs(counters) do
-			before[index] = found.region.peek(found.offset)
+			before[index] = {byte = found.region.peek(found.offset), credits = value(found)}
 		end
 		press(input, START_HOLD)
 		wait(START_SETTLE)
 		-- The smallest loss wins: display copies (ASCII digits, tiles) fall further when the text clears.
 		local paid, cost = {}, nil
 		for index, found in ipairs(counters) do
-			changed = changed or found.region.peek(found.offset) ~= before[index]
+			changed = changed or value(found) ~= before[index].credits
 			local loss = spent(found, before[index])
 			if loss > 0 and (cost == nil or loss < cost) then
 				cost, paid = loss, {}
@@ -390,7 +412,7 @@ local function discover()
 	paid = token and paid
 	local chosen = (paid or counters)[1]
 	result.cpu, result.space = chosen.region.cpu, chosen.region.space
-	result.address, result.size, result.encoding = string.format("%x", chosen.address), 1, chosen.encoding
+	result.address, result.size, result.encoding = string.format("%x", chosen.address), chosen.size, chosen.encoding
 	result.max_credits      = saturated and value(chosen) or ""
 	result.coins_per_credit = chosen.spacing .. "/" .. chosen.credits
 	result.candidates       = #(paid or counters)

@@ -1,7 +1,9 @@
 -- Credit counter search, independent of MAME: works on RAM snapshots.
 -- A snapshot is a list of strings, one per scanned region.
 -- A candidate is a byte that stays still while idle and steps a constant number of credits
--- (binary or BCD) every `spacing` coins: the coinage is `spacing` coins for `step` credits.
+-- every `spacing` coins: the coinage is `spacing` coins for `step` credits.
+-- Encodings: binary, packed BCD, or one decimal digit per byte ("digit", wraps 9 -> 0 into a
+-- neighbouring tens byte).
 
 local Search = {}
 Search.__index = Search
@@ -39,9 +41,9 @@ function Search.bcdDecode(value)
 	return (value >> 4) * 10 + (value & 0x0f)
 end
 
--- "bin", "bcd" or "any" (both explain every step seen) for a candidate's encoding set.
+-- "any" (binary and BCD both explain every step seen), "bcd", "digits" or "bin" for an encoding set.
 function Search.encodingName(encoding)
-	return encoding.bin and encoding.bcd and "any" or encoding.bcd and "bcd" or "bin"
+	return encoding.bin and encoding.bcd and "any" or encoding.bcd and "bcd" or encoding.digit and "digits" or "bin"
 end
 
 -- Credits a byte holds under an encoding name.
@@ -56,8 +58,9 @@ end
 -- Credits added by old -> new per encoding, e.g. {bin = 7, bcd = 1} for 0x09 -> 0x10.
 local function steps(old, new)
 	return {
-		bin = step((new - old) & 0xff),
-		bcd = Search.isBcd(old) and Search.isBcd(new) and step(Search.bcdDecode(new) - Search.bcdDecode(old)) or nil,
+		bin   = step((new - old) & 0xff),
+		bcd   = Search.isBcd(old) and Search.isBcd(new) and step(Search.bcdDecode(new) - Search.bcdDecode(old)) or nil,
+		digit = old <= 9 and new <= 9 and step((new - old) % 10) or nil,
 	}
 end
 
@@ -150,7 +153,7 @@ function Search:save()
 	for candidate, state in pairs(self.candidates) do
 		copy[candidate] = {
 			value = state.value, last = state.last, changes = state.changes, spacing = state.spacing,
-			encoding = {bin = state.encoding.bin, bcd = state.encoding.bcd},
+			encoding = {bin = state.encoding.bin, bcd = state.encoding.bcd, digit = state.encoding.digit},
 		}
 	end
 	return {candidates = copy, coins = self.coins}
