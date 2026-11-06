@@ -439,9 +439,10 @@ local function discover()
 	-- Coins that only ever add (health, play time) and inputs that never touch them: no credit is spent.
 	if not token then
 		result.status, result.reason = "found", cost and "no_start" or "coin_buys_play"
+		result.start_mode = not cost and "coin_buys_play" or nil
 		return result
 	end
-	result.start1_field, result.start1_cost = token, cost
+	result.start_mode, result.start1_field, result.start1_cost = "input", token, cost
 
 	-- Second player: shared credits, or its own counter fed by its own coin slot.
 	result.credit_scope = "shared"
