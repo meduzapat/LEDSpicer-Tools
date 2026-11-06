@@ -76,12 +76,33 @@ function Search.split(candidate)
 	return candidate >> 32, candidate & 0xffffffff
 end
 
--- Drops candidates that changed without input.
-function Search:idle(before, after)
-	for candidate in pairs(self.candidates) do
+-- Whether old -> new loses credits under one of the encodings still possible.
+local function loses(encoding, old, new)
+	local lost = {
+		bin   = old - new,
+		bcd   = Search.isBcd(new) and Search.bcdDecode(old) - Search.bcdDecode(new),
+		digit = new <= 9 and old - new,
+	}
+	for name in pairs(encoding) do
+		if lost[name] and lost[name] > 0 and lost[name] <= MAX_STEP then
+			return true
+		end
+	end
+	return false
+end
+
+-- Drops candidates that changed without input, except a candidate stepped `changes` times that lost
+-- credits: the game started by itself (a start timer ran out) and the candidate is marked autoStart.
+function Search:idle(before, after, changes)
+	for candidate, state in pairs(self.candidates) do
 		local region, offset = Search.split(candidate)
-		if before[region]:byte(offset) ~= after[region]:byte(offset) then
-			self.candidates[candidate] = nil
+		local new = after[region]:byte(offset)
+		if before[region]:byte(offset) ~= new then
+			if state.changes >= changes and loses(state.encoding, state.value, new) then
+				state.value, state.autoStart = new, true
+			else
+				self.candidates[candidate] = nil
+			end
 		end
 	end
 end
@@ -152,7 +173,7 @@ function Search:save()
 	local copy = {}
 	for candidate, state in pairs(self.candidates) do
 		copy[candidate] = {
-			value = state.value, last = state.last, changes = state.changes, spacing = state.spacing,
+			value = state.value, last = state.last, changes = state.changes, spacing = state.spacing, autoStart = state.autoStart,
 			encoding = {bin = state.encoding.bin, bcd = state.encoding.bcd, digit = state.encoding.digit},
 		}
 	end

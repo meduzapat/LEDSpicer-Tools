@@ -11,7 +11,7 @@ local function feed(search, values)
 	local before = snap(values[1])
 	for index = 2, #values do
 		local after = snap(values[index])
-		search:idle(before, before)
+		search:idle(before, before, 3)
 		search:coin(before, after)
 		before = after
 	end
@@ -79,8 +79,14 @@ end)
 
 test("idle change drops", function()
 	local search = feed(Search.new(), {0, 1})
-	search:idle(snap(1), snap(2))
+	search:idle(snap(1), snap(2), 3)
 	assert(search:count() == 0)
+end)
+
+test("confirmed counter losing credits while idle is an auto start", function()
+	local search = feed(Search.new(), {0, 1, 2, 3})
+	search:idle(snap(3), snap(2), 3)
+	assert(only(search).autoStart and only(search).value == 2)
 end)
 
 test("restore undoes coins", function()

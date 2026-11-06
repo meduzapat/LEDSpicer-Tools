@@ -14,7 +14,7 @@ final class Results {
 		'set', 'status', 'reason', 'family', 'method', 'driver_status', 'bios',
 		'cpu', 'space', 'address', 'size', 'encoding', 'max_credits', 'coins_per_credit', 'credit_scope',
 		'start1_field', 'start1_cost', 'start2_field', 'start2_cost',
-		'freeplay', 'freeplay_default', 'lockout_suspected', 'candidates', 'verified',
+		'freeplay', 'freeplay_default', 'lockout_suspected', 'auto_start', 'candidates', 'verified',
 		'mame_version', 'elapsed',
 	];
 

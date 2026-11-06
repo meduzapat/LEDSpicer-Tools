@@ -205,6 +205,7 @@ local function counter(list, candidate, state)
 		candidate = candidate, state = state, region = region, offset = offset, address = region.first + offset - 1, size = 1,
 		encoding = Search.encodingName(state.encoding),
 		credits = state.encoding.bcd or state.encoding.bin or state.encoding.digit, spacing = state.spacing,
+		autoStart = state.autoStart,
 	}
 	if found.encoding == "digits" then
 		found.tens = isDigit(region.peek(offset - 1)) and offset - 1 or isDigit(region.peek(offset + 1)) and offset + 1
@@ -252,7 +253,7 @@ local function findCounters(list, coin)
 	local function idle(seconds)
 		wait(seconds)
 		local quiet = snapshot(list)
-		search:idle(before, quiet)
+		search:idle(before, quiet, CONFIRM_CHANGES)
 		before = quiet
 	end
 
@@ -387,7 +388,7 @@ local function discover()
 	if not coins[1] then
 		return {status = "found", reason = "no_coin_field"}
 	end
-	local result = {freeplay = "none", lockout_suspected = "no"}
+	local result = {freeplay = "none", lockout_suspected = "no", auto_start = "no"}
 
 	local switches = freePlaySwitches()
 	local disabled = false
@@ -417,6 +418,12 @@ local function discover()
 		return result
 	end
 
+	-- A game that started by itself is tested again from a reset: coins, then Start before its timer runs out.
+	if counters[1].autoStart then
+		result.auto_start = "yes"
+		softReset()
+		ready(counters[1], coins[1], 1, boot)
+	end
 	local token, cost, paid = start(counters, startInputs(1))
 	paid = token and paid
 	local chosen = (paid or counters)[1]
