@@ -29,7 +29,8 @@ final class Mame {
 	/// Per-version folder name for results and cache, e.g. "mame_0264".
 	public readonly string $folder;
 
-	/// Effective rompath from the user's configuration, unexpanded.
+	/// Effective rompath from the user's configuration, environment variables expanded:
+	/// MAME expands them when reading its ini files, never on the command line.
 	public readonly string $rompath;
 
 	public function __construct(public readonly string $binary) {
@@ -37,7 +38,11 @@ final class Mame {
 		$this->version = explode(' ', $this->build)[0];
 		$this->folder  = 'mame_' . str_replace('.', '', $this->version);
 		preg_match('/^rompath\s+(.*)$/m', self::capture([$binary, '-showconfig']), $match);
-		$this->rompath = trim($match[1]);
+		$this->rompath = preg_replace_callback(
+			'/\$(?:\{(\w+)\}|(\w+))/',
+			fn(array $m): string => (string) getenv($m[1] !== '' ? $m[1] : $m[2]),
+			trim($match[1])
+		);
 	}
 
 	/**
@@ -63,17 +68,10 @@ final class Mame {
 	}
 
 	/**
-	 * Rompath entries with environment variables expanded, the way MAME resolves them.
-	 *
 	 * @return string[]
 	 */
 	public function rompathDirectories(): array {
-		$expanded = preg_replace_callback(
-			'/\$(?:\{(\w+)\}|(\w+))/',
-			fn(array $m): string => (string) getenv($m[1] !== '' ? $m[1] : $m[2]),
-			$this->rompath
-		);
-		return explode(';', $expanded);
+		return explode(';', $this->rompath);
 	}
 
 	private static function capture(array $command): string {

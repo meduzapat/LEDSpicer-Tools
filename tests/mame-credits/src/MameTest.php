@@ -17,7 +17,7 @@ final class MameTest extends TestCase {
 		$this->assertSame('0.999 (mock)', $mame->build);
 		$this->assertSame('0.999', $mame->version);
 		$this->assertSame('mame_0999', $mame->folder);
-		$this->assertStringEndsWith(';$MOCK_MISSING_DIR', $mame->rompath);
+		$this->assertStringEndsWith('/mocks/roms;', $mame->rompath);
 	}
 
 	public function testRompathExpandsVariables(): void {
