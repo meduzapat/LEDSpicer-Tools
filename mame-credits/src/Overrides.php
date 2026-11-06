@@ -28,13 +28,13 @@ final class Overrides {
 	}
 
 	/**
-	 * The row with the set's overrides; a discovered row becomes success.
+	 * The row with the set's overrides, or its parent's when the clone has none; a discovered row becomes success.
 	 *
 	 * @param array<string, string> $row
 	 * @return array<string, string>
 	 */
-	public function apply(array $row): array {
-		$values = $this->sets[$row['set']] ?? null;
+	public function apply(array $row, string $parent): array {
+		$values = $this->sets[$row['set']] ?? $this->sets[$parent] ?? null;
 		if ($values === null || !in_array($row['status'], [Status::Found->value, Status::Success->value], true))
 			return $row;
 		return [...$row, ...$values, 'status' => Status::Success->value, 'reason' => 'override'];

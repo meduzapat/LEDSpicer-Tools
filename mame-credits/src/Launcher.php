@@ -160,7 +160,7 @@ final class Launcher {
 	 * @param array<string, string> $row
 	 */
 	private function finish(Job $job, array $row, Results $results): void {
-		$row = [...$this->overrides->apply($row), 'power_cycle' => $job->powerCycled ? 'yes' : 'no'];
+		$row = [...$this->overrides->apply($row, $job->machine->cloneof), 'power_cycle' => $job->powerCycled ? 'yes' : 'no'];
 		$results->add([...$row, 'mame_version' => $this->mame->build]);
 		$log = "$this->resultsDir/logs/{$row['set']}.log";
 		if ($row['status'] === Status::Error->value)

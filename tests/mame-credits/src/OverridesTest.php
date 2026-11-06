@@ -17,7 +17,7 @@ final class OverridesTest extends TestCase {
 	}
 
 	public function testDiscoveredRowBecomesSuccess(): void {
-		$row = $this->overrides("# note\n\ngame start_mode=coin\n")->apply(['set' => 'game', 'status' => 'found', 'reason' => 'coin_buys_play']);
+		$row = $this->overrides("# note\n\ngame start_mode=coin\n")->apply(['set' => 'game', 'status' => 'found', 'reason' => 'coin_buys_play'], '');
 		$this->assertSame(['set' => 'game', 'status' => 'success', 'reason' => 'override', 'start_mode' => 'coin'], $row);
 	}
 
@@ -25,8 +25,14 @@ final class OverridesTest extends TestCase {
 		$overrides = $this->overrides("game start_mode=coin\n");
 		$error     = ['set' => 'game', 'status' => 'error', 'reason' => 'missing_files'];
 		$other     = ['set' => 'other', 'status' => 'found', 'reason' => 'no_start'];
-		$this->assertSame($error, $overrides->apply($error));
-		$this->assertSame($other, $overrides->apply($other));
+		$this->assertSame($error, $overrides->apply($error, ''));
+		$this->assertSame($other, $overrides->apply($other, ''));
+	}
+
+	public function testClonesInheritTheirParent(): void {
+		$overrides = $this->overrides("game start_mode=coin\nclone2 start_mode=input\n");
+		$this->assertSame('coin', $overrides->apply(['set' => 'clone1', 'status' => 'found', 'reason' => ''], 'game')['start_mode']);
+		$this->assertSame('input', $overrides->apply(['set' => 'clone2', 'status' => 'found', 'reason' => ''], 'game')['start_mode']);
 	}
 
 	public function testMalformedTokenFails(): void {
