@@ -26,6 +26,10 @@ local CONFIRM_CHANGES = 3  -- credit steps a candidate needs to count as found
 local ENCODE_CREDITS  = 10 -- credit count that separates BCD (0x10) from binary (0x0a)
 local MAX_BUTTONS     = 8  -- player buttons tried as start when there is no start input
 local START2_CREDITS  = 4  -- credits needed before the second player start
+-- Rounds through the start inputs: a press may only leave an info screen (toki) or land where the
+-- game ignores it (psychic5).
+local START_ROUNDS = 3
+local START_PAUSE  = 5 -- emulated seconds between rounds
 
 local machine = manager.machine
 local ioport  = machine.ioport
@@ -343,31 +347,36 @@ local function spent(found, old)
 	return bin
 end
 
--- Presses each input until counters lose credits; returns the input token, the cost and the counters that paid.
--- Without a loss, returns whether any input changed a counter at all.
+-- Presses each input, in up to START_ROUNDS rounds, until counters lose credits; returns the input
+-- token, the cost and the counters that paid. Without a loss, returns whether any input changed a counter.
 local function start(counters, inputs)
 	local changed = false
-	for _, input in ipairs(inputs) do
-		local before = {}
-		for index, found in ipairs(counters) do
-			before[index] = {byte = found.region.peek(found.offset), credits = value(found)}
+	for round = 1, START_ROUNDS do
+		if round > 1 then
+			wait(START_PAUSE)
 		end
-		press(input, START_HOLD)
-		wait(START_SETTLE)
-		-- The smallest loss wins: display copies (ASCII digits, tiles) fall further when the text clears.
-		local paid, cost = {}, nil
-		for index, found in ipairs(counters) do
-			changed = changed or value(found) ~= before[index].credits
-			local loss = spent(found, before[index])
-			if loss > 0 and (cost == nil or loss < cost) then
-				cost, paid = loss, {}
+		for _, input in ipairs(inputs) do
+			local before = {}
+			for index, found in ipairs(counters) do
+				before[index] = {byte = found.region.peek(found.offset), credits = value(found)}
 			end
-			if loss > 0 and loss == cost then
-				paid[#paid + 1] = found
+			press(input, START_HOLD)
+			wait(START_SETTLE)
+			-- The smallest loss wins: display copies (ASCII digits, tiles) fall further when the text clears.
+			local paid, cost = {}, nil
+			for index, found in ipairs(counters) do
+				changed = changed or value(found) ~= before[index].credits
+				local loss = spent(found, before[index])
+				if loss > 0 and (cost == nil or loss < cost) then
+					cost, paid = loss, {}
+				end
+				if loss > 0 and loss == cost then
+					paid[#paid + 1] = found
+				end
 			end
-		end
-		if cost then
-			return token(input), cost, paid
+			if cost then
+				return token(input), cost, paid
+			end
 		end
 	end
 	return nil, changed
