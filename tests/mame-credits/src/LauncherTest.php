@@ -38,6 +38,7 @@ final class LauncherTest extends TestCase {
 			'mech'     => 'skipped:mechanical',
 			'missing'  => 'error:missing_files',
 			'noresult' => 'error:timeout',
+			'nvinit'   => 'found:boot_only',
 			'ok'       => 'found:boot_only',
 			'okclone'  => 'found:boot_only',
 		], $this->discover());

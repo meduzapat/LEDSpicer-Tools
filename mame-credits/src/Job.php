@@ -37,10 +37,12 @@ final class Job {
 	public function __construct(
 		public readonly Machine $machine,
 		public readonly string $tempDir,
-		array $command,
-		int $timeout,
+		private readonly array $command,
+		private readonly int $timeout,
+		public readonly bool $powerCycled = false,
 	) {
-		mkdir($tempDir, 0700, true);
+		if (!$powerCycled)
+			mkdir($tempDir, 0700, true);
 		$this->started = microtime(true);
 		$this->killAt  = $this->started + $timeout;
 		$this->process = proc_open(
@@ -68,6 +70,15 @@ final class Job {
 		$row = $this->row($status['signaled'] ? -1 : $status['exitcode']);
 		$row['elapsed'] = sprintf('%.1f', microtime(true) - $this->started);
 		return $row;
+	}
+
+	/**
+	 * The same run again on the NVRAM this one saved, like switching the cabinet off and on:
+	 * games that initialize their NVRAM on first boot (robotron) only work from the second.
+	 */
+	public function powerCycle(): self {
+		unlink($this->resultFile());
+		return new self($this->machine, $this->tempDir, $this->command, $this->timeout, true);
 	}
 
 	/**

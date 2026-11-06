@@ -130,6 +130,10 @@ final class Launcher {
 				if ($row === null)
 					continue;
 				unset($running[$index]);
+				if (!$this->interrupted && !$job->powerCycled && $row['reason'] === 'no_reaction') {
+					$running[] = $job->powerCycle();
+					continue;
+				}
 				// interrupted runs are incomplete, they are run again next time
 				if (!$this->interrupted) {
 					$this->finish($job, $row, $results);
@@ -156,7 +160,8 @@ final class Launcher {
 	 * @param array<string, string> $row
 	 */
 	private function finish(Job $job, array $row, Results $results): void {
-		$results->add([...$this->overrides->apply($row), 'mame_version' => $this->mame->build]);
+		$row = [...$this->overrides->apply($row), 'power_cycle' => $job->powerCycled ? 'yes' : 'no'];
+		$results->add([...$row, 'mame_version' => $this->mame->build]);
 		$log = "$this->resultsDir/logs/{$row['set']}.log";
 		if ($row['status'] === Status::Error->value)
 			rename($job->logFile(), $log);

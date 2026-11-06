@@ -6,7 +6,11 @@ case "$1" in
 	-listxml)    cat "$(dirname "$0")/listxml.xml"; exit 0 ;;
 esac
 echo "$@" > "$(dirname "$MAMECREDITS_OUT")/args"
+nvram=$(echo "$@" | sed -n 's/.*-nvram_directory \([^ ]*\).*/\1/p')
 case "$1" in
+	nvinit)     # reacts only once its NVRAM exists, like a game initializing it on first boot
+		if [ -f "$nvram/nvinit" ]; then printf 'status=found\nreason=boot_only\n' > "$MAMECREDITS_OUT"
+		else mkdir -p "$nvram" && touch "$nvram/nvinit" && printf 'status=found\nreason=no_reaction\n' > "$MAMECREDITS_OUT"; fi ;;
 	ok|okclone) printf 'status=found\nreason=boot_only\n' > "$MAMECREDITS_OUT" ;;
 	missing)    exit 2 ;;
 	crash)      echo "fatal"; exit 3 ;;
