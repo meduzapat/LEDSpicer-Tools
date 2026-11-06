@@ -22,6 +22,7 @@ final class Launcher {
 		private readonly Options $options,
 		private readonly Mame $mame,
 		private readonly string $script,
+		private readonly Overrides $overrides,
 	) {
 		$this->resultsDir = "{$options->data}/results/{$mame->folder}";
 		$this->tempRoot   = sys_get_temp_dir() . '/mame-credits-' . getmypid();
@@ -155,7 +156,7 @@ final class Launcher {
 	 * @param array<string, string> $row
 	 */
 	private function finish(Job $job, array $row, Results $results): void {
-		$results->add([...$row, 'mame_version' => $this->mame->build]);
+		$results->add([...$this->overrides->apply($row), 'mame_version' => $this->mame->build]);
 		$log = "$this->resultsDir/logs/{$row['set']}.log";
 		if ($row['status'] === Status::Error->value)
 			rename($job->logFile(), $log);

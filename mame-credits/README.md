@@ -28,6 +28,9 @@ Runs every set with coins, or a list (`--sets a,b` or `--sets @file`), resumable
 Each run uses fresh temporary NVRAM/CFG directories and ignores the user's ini files and plugins; only the rompath is taken from MAME's configuration.
 Arguments after `--` are passed to MAME.
 
+`overrides.txt` holds reviewed behaviour discovery cannot measure (e.g. games where coins buy health);
+it is applied over the discovered result of those sets.
+
 ## Output
 
 Results are kept per MAME version, so runs with different versions never overwrite each other.
