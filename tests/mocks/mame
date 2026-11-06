@@ -12,6 +12,7 @@ case "$1" in
 		if [ -f "$nvram/nvinit" ]; then printf 'status=found\nreason=boot_only\n' > "$MAMECREDITS_OUT"
 		else mkdir -p "$nvram" && touch "$nvram/nvinit" && printf 'status=found\nreason=no_reaction\n' > "$MAMECREDITS_OUT"; fi ;;
 	ok|okclone) printf 'status=found\nreason=boot_only\n' > "$MAMECREDITS_OUT" ;;
+	deaf)       printf 'status=found\nreason=no_reaction\n' > "$MAMECREDITS_OUT" ;;
 	missing)    exit 2 ;;
 	crash)      echo "fatal"; exit 3 ;;
 	hang)       exec sleep 60 ;;

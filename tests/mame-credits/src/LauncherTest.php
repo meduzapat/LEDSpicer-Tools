@@ -34,6 +34,7 @@ final class LauncherTest extends TestCase {
 			'adevice'  => 'skipped:device',
 			'console'  => 'skipped:no_coins',
 			'crash'    => 'error:fatal',
+			'deaf'     => 'found:needs_setup',
 			'hang'     => 'error:timeout',
 			'mech'     => 'skipped:mechanical',
 			'missing'  => 'error:missing_files',

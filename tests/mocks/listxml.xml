@@ -12,6 +12,7 @@
 		<driver status="good" emulation="good" savestate="supported"/>
 	</machine>
 	<machine name="nvinit" sourcefile="mock/other.cpp"><input players="1" coins="1"/></machine>
+	<machine name="deaf" sourcefile="mock/other.cpp"><input players="1" coins="1"/></machine>
 	<machine name="missing" sourcefile="mock/other.cpp"><input players="1" coins="1"/></machine>
 	<machine name="crash" sourcefile="mock/other.cpp"><input players="1" coins="1"/></machine>
 	<machine name="hang" sourcefile="mock/other.cpp"><input players="1" coins="1"/></machine>

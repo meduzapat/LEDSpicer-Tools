@@ -134,6 +134,9 @@ final class Launcher {
 					$running[] = $job->powerCycle();
 					continue;
 				}
+				// Still deaf after a power cycle: waiting for a first-boot setup (calibration, settings), or broken.
+				if ($job->powerCycled && $row['reason'] === 'no_reaction')
+					$row['reason'] = 'needs_setup';
 				// interrupted runs are incomplete, they are run again next time
 				if (!$this->interrupted) {
 					$this->finish($job, $row, $results);

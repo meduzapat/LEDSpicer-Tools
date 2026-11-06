@@ -38,7 +38,7 @@ Earlier results (other versions, parent and BIOS-family sets) are used as hints 
 
 | File | Content |
 |---|---|
-| `results/mame_<version>/results.tsv` | One line per set: status, reason and discovered data. |
+| `results/mame_<version>/results.tsv` | One line per set: status, reason and discovered data; `needs_setup` sets wait for a first-boot setup (calibration, settings) or do not work. |
 | `results/mame_<version>/credits.dat` | Verified entries only, consumed by the MAME plugin. |
 | `results/mame_<version>/logs/<set>.log` | MAME output of sets that ended in error. |
 | `cache/mame_<version>/index.tsv` | Systems from `mame -listxml`, built once per version. |
