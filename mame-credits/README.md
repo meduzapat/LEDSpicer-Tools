@@ -31,6 +31,8 @@ Arguments after `--` are passed to MAME.
 `overrides.txt` holds reviewed behaviour discovery cannot measure (e.g. games where coins buy health);
 it is applied over the discovered result of those sets.
 
+Typical cycle: discover, `--verify` (a second run on fresh directories confirms each success), then `--dat`.
+
 ## Output
 
 Results are kept per MAME version, so runs with different versions never overwrite each other.

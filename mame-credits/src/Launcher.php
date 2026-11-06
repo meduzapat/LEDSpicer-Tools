@@ -43,6 +43,12 @@ final class Launcher {
 
 		$machines    = Index::load($this->mame, $cache);
 		$results     = new Results("$this->resultsDir/results.tsv");
+		if ($this->options->dat) {
+			Dat::write("$this->resultsDir/credits.dat", $results->rows(), $machines, $this->mame->build);
+			echo "$this->resultsDir/credits.dat\n";
+			rmdir($this->tempRoot);
+			return 0;
+		}
 		$this->hints = new Hints($machines, "{$this->options->data}/results", $this->mame->folder, $results);
 		$queue       = [];
 		foreach ($this->select($machines) as $machine) {
