@@ -16,6 +16,7 @@ Usage: discover.php [options] [-- extra MAME arguments]
   --present       only sets (or their parent) found in the rompath
   --force         run sets that already have a result
   --retry-errors  run sets whose result is an error
+  --verify        re-run successes not verified yet, checking only their own result
   --jobs N        parallel MAME processes (default: CPU count)
   --timeout S     wall clock seconds per set (default: 600)
   --seconds S     emulated seconds per set (default: 300)
@@ -33,6 +34,7 @@ TXT;
 		$present     = false,
 		$force       = false,
 		$retryErrors = false,
+		$verify      = false,
 		$help        = false;
 
 	public int
@@ -55,6 +57,7 @@ TXT;
 				'--present'      => $this->present = true,
 				'--force'        => $this->force = true,
 				'--retry-errors' => $this->retryErrors = true,
+				'--verify'       => $this->verify = true,
 				'--jobs'         => $this->jobs = self::number($arg, $args),
 				'--timeout'      => $this->timeout = self::number($arg, $args),
 				'--seconds'      => $this->seconds = self::number($arg, $args),

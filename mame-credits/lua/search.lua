@@ -13,6 +13,7 @@ local CHUNK = 64
 
 -- Highest coins per step expected; a candidate that does not step again within it is dropped.
 local MAX_SPACING = 4
+Search.MAX_SPACING = MAX_SPACING
 
 -- Highest credits per step expected.
 local MAX_STEP = 9

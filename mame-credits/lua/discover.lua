@@ -164,7 +164,7 @@ local function regions()
 					end
 					local first = entry.address_start
 					list[#list + 1] = {
-						cpu = tag, space = name, first = first,
+						cpu = tag, space = name, first = first, last = entry.address_end,
 						rank = (tag == ":maincpu" and 0 or 2) + (entry.write.handlertype == "ram" and 0 or 1),
 						read = function() return space:read_range(first, entry.address_end, 8) end,
 						peek = function(offset) return space:read_u8(first + offset - 1) end,
@@ -176,7 +176,7 @@ local function regions()
 	for tag, share in pairs(machine.memory.shares) do
 		if not mapped[tag:match("[^:]+$")] then
 			list[#list + 1] = {
-				cpu = tag, space = "share", first = 0, rank = 4,
+				cpu = tag, space = "share", first = 0, last = share.size - 1, rank = 4,
 				read = function()
 					local parts = {}
 					for first = 0, share.size - 1, 4096 do
@@ -340,6 +340,58 @@ local function findCounters(list, coin)
 	return found(), saturated, boot
 end
 
+-- Known locations to verify before searching, best first: "method,cpu,space,address,encoding;...".
+local function hints()
+	local list = {}
+	for entry in (os.getenv("MAMECREDITS_HINTS") or ""):gmatch("[^;]+") do
+		local method, cpu, space, address, encoding = entry:match("^([^,]+),([^,]+),([^,]+),(%x+),([^,]+)$")
+		list[#list + 1] = {method = method, cpu = cpu, space = space, address = tonumber(address, 16), encoding = encoding}
+	end
+	return list
+end
+
+-- The counter a hint describes, or nil when no scanned region holds its address.
+local function located(list, hint)
+	for _, region in ipairs(list) do
+		if region.cpu == hint.cpu and region.space == hint.space and hint.address >= region.first and hint.address <= region.last then
+			local offset = hint.address - region.first + 1
+			local found  = {region = region, offset = offset, address = hint.address, size = 1, encoding = hint.encoding}
+			if hint.encoding == "digits" then
+				found.tens, found.offset, found.size = offset, offset + 1, 2
+			elseif hint.encoding == "digits_le" then
+				found.tens, found.size = offset + 1, 2
+			end
+			return found
+		end
+	end
+end
+
+-- Coins until a hinted counter steps CONFIRM_CHANGES times alike while keeping still when idle, like the
+-- search requires; sets its coinage. Losing credits in the long idle is a start timer (auto start).
+local function confirms(found, coin)
+	local deadline, steps, since, last = emu.time() + BOOT_MAX, 0, 0, value(found)
+	while steps < CONFIRM_CHANGES and emu.time() < deadline do
+		wait(IDLE)
+		if value(found) ~= last then
+			steps, last = 0, value(found)
+		end
+		press(coin, HOLD)
+		wait(SETTLE)
+		since = since + 1
+		local now = value(found)
+		if now > last then
+			local alike = now - last == found.credits and since == found.spacing
+			found.credits, found.spacing, steps, since = now - last, since, alike and steps + 1 or 1, 0
+		elseif since >= Search.MAX_SPACING then
+			steps = 0
+		end
+		last = now
+	end
+	wait(LONG_IDLE)
+	found.autoStart = value(found) < last
+	return steps == CONFIRM_CHANGES and value(found) <= last
+end
+
 -- Credits a counter gained since `old` ({byte, credits}), negative for a loss; a counter still "any"
 -- takes the encoding that explains the smaller change (0x10 -> 0x09 is -1 in BCD, -7 in binary).
 local function change(found, old)
@@ -441,8 +493,24 @@ local function discover()
 		softReset()
 	end
 
+	-- Hints first: a confirmed hint replaces the search; verify mode only checks them.
 	local list = regions()
-	local counters, saturated, boot = findCounters(list, coins[1])
+	local counters, saturated, boot, method = {}, false, nil, "search"
+	local began = emu.time()
+	for _, hint in ipairs(hints()) do
+		local found = located(list, hint)
+		if found and confirms(found, coins[1]) then
+			counters, boot, method = {found}, emu.time() - began, hint.method
+			break
+		end
+	end
+	-- Like a search without a counter, so the launcher power cycles it the same way.
+	if #counters == 0 and os.getenv("MAMECREDITS_MODE") == "verify" then
+		return {status = "found", reason = "no_reaction"}
+	end
+	if #counters == 0 then
+		counters, saturated, boot = findCounters(list, coins[1])
+	end
 	if #counters == 0 then
 		machine.options.entries.coin_lockout:value(false)
 		counters, saturated, boot = findCounters(list, coins[1])
@@ -502,7 +570,7 @@ local function discover()
 	end
 	-- Later steps may have settled an "any" encoding.
 	result.encoding = chosen.encoding
-	result.status, result.reason, result.method = "success", "", "search"
+	result.status, result.reason, result.method = "success", "", method
 	return result
 end
 

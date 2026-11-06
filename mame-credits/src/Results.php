@@ -25,18 +25,41 @@ final class Results {
 	private $journal;
 
 	public function __construct(private readonly string $path) {
-		if (is_file($path)) {
-			foreach (Tsv::read($path, self::COLUMNS) as $row)
-				$this->rows[$row[0]] = array_combine(self::COLUMNS, $row);
-		}
-		else {
+		if (is_file($path))
+			$this->rows = self::read($path);
+		else
 			file_put_contents($path, Tsv::line(self::COLUMNS));
-		}
 		$this->journal = fopen($path, 'a');
+	}
+
+	/**
+	 * Rows of a results file without opening it for writing, e.g. another MAME version's.
+	 *
+	 * @return array<string, array<string, string>>
+	 */
+	public static function read(string $path): array {
+		$rows = [];
+		foreach (Tsv::read($path, self::COLUMNS) as $row)
+			$rows[$row[0]] = array_combine(self::COLUMNS, $row);
+		return $rows;
 	}
 
 	public function status(string $set): ?string {
 		return $this->rows[$set]['status'] ?? null;
+	}
+
+	/**
+	 * @return array<string, string>|null
+	 */
+	public function row(string $set): ?array {
+		return $this->rows[$set] ?? null;
+	}
+
+	/**
+	 * @return array<string, array<string, string>>
+	 */
+	public function rows(): array {
+		return $this->rows;
 	}
 
 	/**

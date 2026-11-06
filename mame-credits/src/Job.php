@@ -33,11 +33,13 @@ final class Job {
 
 	/**
 	 * @param string[] $command full MAME command line.
+	 * @param array<string, string> $env variables for discover.lua.
 	 */
 	public function __construct(
 		public readonly Machine $machine,
 		public readonly string $tempDir,
 		private readonly array $command,
+		private readonly array $env,
 		private readonly int $timeout,
 		public readonly bool $powerCycled = false,
 	) {
@@ -50,7 +52,7 @@ final class Job {
 			[0 => ['file', '/dev/null', 'r'], 1 => ['file', "$tempDir/mame.log", 'w'], 2 => ['redirect', 1]],
 			$pipes,
 			null,
-			[...getenv(), 'MAMECREDITS_OUT' => $this->resultFile()]
+			[...getenv(), ...$env, 'MAMECREDITS_OUT' => $this->resultFile()]
 		);
 	}
 
@@ -78,7 +80,7 @@ final class Job {
 	 */
 	public function powerCycle(): self {
 		unlink($this->resultFile());
-		return new self($this->machine, $this->tempDir, $this->command, $this->timeout, true);
+		return new self($this->machine, $this->tempDir, $this->command, $this->env, $this->timeout, true);
 	}
 
 	/**

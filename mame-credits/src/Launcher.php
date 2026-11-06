@@ -14,6 +14,8 @@ final class Launcher {
 
 	private bool $interrupted = false;
 
+	private Hints $hints;
+
 	private string
 		$resultsDir,
 		$tempRoot;
@@ -39,11 +41,12 @@ final class Launcher {
 				mkdir($directory, 0755, true);
 		}
 
-		$machines = Index::load($this->mame, $cache);
-		$results  = new Results("$this->resultsDir/results.tsv");
-		$queue    = [];
+		$machines    = Index::load($this->mame, $cache);
+		$results     = new Results("$this->resultsDir/results.tsv");
+		$this->hints = new Hints($machines, "{$this->options->data}/results", $this->mame->folder, $results);
+		$queue       = [];
 		foreach ($this->select($machines) as $machine) {
-			if (!$this->options->force && !$this->isRetry($results->status($machine->name)))
+			if (!$this->isQueued($results->row($machine->name)))
 				continue;
 			$reason = $machine->skipReason();
 			if ($reason === null)
@@ -56,6 +59,8 @@ final class Launcher {
 		foreach ([SIGINT, SIGTERM] as $signal)
 			pcntl_signal($signal, fn() => $this->interrupted = true);
 
+		// Parents first: their results become their clones' hints.
+		usort($queue, fn(Machine $a, Machine $b): int => ($a->cloneof !== '') <=> ($b->cloneof !== ''));
 		$this->runQueue($queue, $results);
 		$results->save();
 		rmdir($this->tempRoot);
@@ -67,10 +72,16 @@ final class Launcher {
 	}
 
 	/**
-	 * Whether a set with this previous status runs again; null means never run.
+	 * Whether a set with this previous result (null: never run) runs; --verify runs unverified successes only.
+	 *
+	 * @param array<string, string>|null $row
 	 */
-	private function isRetry(?string $status): bool {
-		return $status === null || ($this->options->retryErrors && $status === Status::Error->value);
+	private function isQueued(?array $row): bool {
+		if ($this->options->verify)
+			return $row !== null && $row['status'] === Status::Success->value && $row['verified'] !== 'yes';
+		return $row === null
+			|| $this->options->force
+			|| ($this->options->retryErrors && $row['status'] === Status::Error->value);
 	}
 
 	/**
@@ -120,8 +131,8 @@ final class Launcher {
 		$done    = 0;
 		$running = [];
 		while (($queue && !$this->interrupted) || $running) {
-			while ($queue && !$this->interrupted && count($running) < $this->options->jobs)
-				$running[] = $this->start(array_shift($queue));
+			while (!$this->interrupted && count($running) < $this->options->jobs && ($next = self::next($queue, $running)) !== null)
+				$running[] = $this->start($next, $results);
 			usleep((int) (self::POLL_INTERVAL * 1e6));
 			foreach ($running as $index => $job) {
 				if ($this->interrupted)
@@ -147,12 +158,35 @@ final class Launcher {
 		}
 	}
 
-	private function start(Machine $machine): Job {
+	/**
+	 * Takes the first queued set whose parent is neither queued nor running, null when all wait.
+	 *
+	 * @param Machine[] $queue
+	 * @param Job[] $running
+	 */
+	private static function next(array &$queue, array $running): ?Machine {
+		$pending = array_flip(array_map(fn(Machine $m): string => $m->name, $queue));
+		foreach ($running as $job)
+			$pending[$job->machine->name] = true;
+		foreach ($queue as $index => $machine) {
+			if (!isset($pending[$machine->cloneof])) {
+				unset($queue[$index]);
+				return $machine;
+			}
+		}
+		return null;
+	}
+
+	private function start(Machine $machine, Results $results): Job {
 		$tempDir = "$this->tempRoot/{$machine->name}";
+		$env     = $this->options->verify
+			? ['MAMECREDITS_MODE' => 'verify', 'MAMECREDITS_HINTS' => 'verify,' . Hints::location($results->row($machine->name))]
+			: ['MAMECREDITS_HINTS' => $this->hints->for($machine, $results)];
 		return new Job(
 			$machine,
 			$tempDir,
 			$this->mame->command($machine, $tempDir, $this->script, $this->options->seconds, $this->options->extra),
+			$env,
 			$this->options->timeout
 		);
 	}
@@ -163,7 +197,21 @@ final class Launcher {
 	 * @param array<string, string> $row
 	 */
 	private function finish(Job $job, array $row, Results $results): void {
-		$row = [...$this->overrides->apply($row, $job->machine->cloneof), 'power_cycle' => $job->powerCycled ? 'yes' : 'no'];
+		if ($this->options->verify) {
+			// The stored result stands; the run only confirms it, at the same location.
+			$stored = $results->row($row['set']);
+			$row    = $this->overrides->apply($row, $job->machine->cloneof);
+			$same   = $row['status'] === Status::Success->value && Hints::location($row) === Hints::location($stored);
+			$results->add([...$stored, 'verified' => $same ? 'yes' : 'no']);
+			return;
+		}
+		$family = $this->hints->family($job->machine);
+		$row    = [
+			...$this->overrides->apply($row, $job->machine->cloneof),
+			'family'      => $family !== '' ? $family : $job->machine->cloneof,
+			'power_cycle' => $job->powerCycled ? 'yes' : 'no',
+		];
+		$this->hints->record($row);
 		$results->add([...$row, 'mame_version' => $this->mame->build]);
 		$log = "$this->resultsDir/logs/{$row['set']}.log";
 		if ($row['status'] === Status::Error->value)
