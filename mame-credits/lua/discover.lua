@@ -310,14 +310,34 @@ local function findCounters(list, coin)
 	return found(), saturated, boot
 end
 
+-- Credits a counter gained since `old` ({byte, credits}), negative for a loss; a counter still "any"
+-- takes the encoding that explains the smaller change (0x10 -> 0x09 is -1 in BCD, -7 in binary).
+local function change(found, old)
+	if found.encoding ~= "any" then
+		return value(found) - old.credits
+	end
+	local new = found.region.peek(found.offset)
+	local bin = new - old.byte
+	local bcd = Search.isBcd(old.byte) and Search.isBcd(new) and Search.bcdDecode(new) - Search.bcdDecode(old.byte)
+	if bcd and bcd ~= 0 and math.abs(bcd) < math.abs(bin) then
+		found.encoding = "bcd"
+		return bcd
+	end
+	return bin
+end
+
+local function mark(found)
+	return {byte = found.region.peek(found.offset), credits = value(found)}
+end
+
 -- Credits `coin` adds to a counter over the counter's coins per step; slots may differ (rodland).
 local function adds(found, coin)
-	local start = value(found)
+	local old = mark(found)
 	for _ = 1, found.spacing do
 		press(coin, HOLD)
 		wait(SETTLE + IDLE)
 	end
-	return value(found) - start
+	return change(found, old)
 end
 
 -- After a reset: waits the boot time, then coins until the counter holds `wanted` credits.
@@ -332,22 +352,6 @@ local function ready(found, coin, wanted, boot)
 	return value(found) >= wanted
 end
 
--- Credits a counter lost since `old` ({byte, credits}); a counter still "any" takes the encoding
--- that explains the smaller loss (0x10 -> 0x09 is 1 credit in BCD, 7 in binary).
-local function spent(found, old)
-	if found.encoding ~= "any" then
-		return old.credits - value(found)
-	end
-	old = old.byte
-	local new = found.region.peek(found.offset)
-	local bin, bcd = old - new, Search.isBcd(old) and Search.isBcd(new) and Search.bcdDecode(old) - Search.bcdDecode(new)
-	if bcd and bcd > 0 and bcd < bin then
-		found.encoding = "bcd"
-		return bcd
-	end
-	return bin
-end
-
 -- Presses each input, in up to START_ROUNDS rounds, until counters lose credits; returns the input
 -- token, the cost and the counters that paid. Without a loss, returns whether any input changed a counter.
 local function start(counters, inputs)
@@ -359,7 +363,7 @@ local function start(counters, inputs)
 		for _, input in ipairs(inputs) do
 			local before = {}
 			for index, found in ipairs(counters) do
-				before[index] = {byte = found.region.peek(found.offset), credits = value(found)}
+				before[index] = mark(found)
 			end
 			press(input, START_HOLD)
 			wait(START_SETTLE)
@@ -367,7 +371,7 @@ local function start(counters, inputs)
 			local paid, cost = {}, nil
 			for index, found in ipairs(counters) do
 				changed = changed or value(found) ~= before[index].credits
-				local loss = spent(found, before[index])
+				local loss = -change(found, before[index])
 				if loss > 0 and (cost == nil or loss < cost) then
 					cost, paid = loss, {}
 				end
@@ -464,6 +468,8 @@ local function discover()
 			result.start2_field, result.start2_cost = field2, cost2
 		end
 	end
+	-- Later steps may have settled an "any" encoding.
+	result.encoding = chosen.encoding
 	result.status, result.reason, result.method = "success", "", "search"
 	return result
 end
