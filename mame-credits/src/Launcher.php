@@ -90,7 +90,7 @@ final class Launcher {
 	}
 
 	private function skipReason(Machine $machine): ?string {
-		return $machine->skipReason() ?? $this->ignore->lookup($machine)['cause'] ?? null;
+		return $machine->skipReason($this->options->status) ?? $this->ignore->lookup($machine)['cause'] ?? null;
 	}
 
 	/**

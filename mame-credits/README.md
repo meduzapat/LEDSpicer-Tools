@@ -52,6 +52,10 @@ Earlier results (other versions, parent and BIOS-family sets) are used as hints 
 | `results/mame_<version>/logs/<set>.log` | MAME output of sets that ended in error. |
 | `cache/mame_<version>/index.tsv` | Systems from `mame -listxml`, built once per version. |
 
+## Plugin
+
+[PLUGIN_NOTES.md](PLUGIN_NOTES.md) lists what the runtime MAME plugin must handle, from what discovery found.
+
 ## License
 
 MIT, see [LICENSE](../LICENSE).

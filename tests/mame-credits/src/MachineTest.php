@@ -34,7 +34,7 @@ final class MachineTest extends TestCase {
 			['adevice', 'device'],
 			['mech', 'mechanical'],
 			['console', 'no_coins'],
-			['broken', 'not_working'],
+			['broken', 'preliminary'],
 			['poker', 'gambling'],
 			['mahjong', 'mahjong'],
 		];
@@ -42,7 +42,12 @@ final class MachineTest extends TestCase {
 
 	#[DataProvider('skipReasons')]
 	public function testSkipReason(string $name, ?string $reason): void {
-		$this->assertSame($reason, self::machine($name)->skipReason());
+		$this->assertSame($reason, self::machine($name)->skipReason('imperfect'));
+	}
+
+	public function testStatusLevel(): void {
+		$this->assertSame('imperfect', self::machine('ok')->skipReason('good'));
+		$this->assertNull(self::machine('broken')->skipReason('preliminary'));
 	}
 
 	public function testRowRoundTrip(): void {

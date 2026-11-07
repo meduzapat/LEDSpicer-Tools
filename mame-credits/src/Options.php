@@ -21,6 +21,8 @@ Usage: discover.php [options] [-- extra MAME arguments]
   --jobs N        parallel MAME processes (default: CPU count)
   --timeout S     wall clock seconds per set (default: 600)
   --seconds S     emulated seconds per set (default: 300)
+  --status S      lowest MAME driver status run: good, imperfect or preliminary (default: imperfect);
+                  results of sets below it are removed, like those of ignored sets
   --data DIR      directory for results/ and cache/ (default: current directory)
   --help          this text
 
@@ -44,7 +46,9 @@ TXT;
 		$timeout = 600,
 		$seconds = 300;
 
-	public string $data = '.';
+	public string
+		$data   = '.',
+		$status = 'imperfect';
 
 	/**
 	 * @param string[] $args arguments without the program name.
@@ -65,6 +69,7 @@ TXT;
 				'--timeout'      => $this->timeout = self::number($arg, $args),
 				'--seconds'      => $this->seconds = self::number($arg, $args),
 				'--data'         => $this->data = self::value($arg, $args),
+				'--status'       => $this->status = self::status(self::value($arg, $args)),
 				'--help'         => $this->help = true,
 				default          => throw new \InvalidArgumentException("Unknown option: $arg"),
 			};
@@ -82,6 +87,12 @@ TXT;
 		if (!ctype_digit($value) || $value === '0')
 			throw new \InvalidArgumentException("$option needs a positive number");
 		return (int) $value;
+	}
+
+	private static function status(string $value): string {
+		if (!in_array($value, Machine::STATUSES, true))
+			throw new \InvalidArgumentException('--status needs one of: ' . implode(', ', Machine::STATUSES));
+		return $value;
 	}
 
 	/**

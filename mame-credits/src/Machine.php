@@ -40,18 +40,22 @@ final class Machine {
 		public readonly array $controls,
 	) {}
 
+	/// MAME driver statuses, best first.
+	public const STATUSES = ['good', 'imperfect', 'preliminary'];
+
 	/**
-	 * Reason this machine is not worth running, null when it must be run.
+	 * Reason this machine is not worth running, null when it must be run; drivers below `$status`
+	 * (one of STATUSES) are skipped under their own status.
 	 */
-	public function skipReason(): ?string {
+	public function skipReason(string $status): ?string {
 		return match (true) {
 			$this->isBios       => 'bios',
 			$this->isDevice     => 'device',
 			$this->isMechanical => 'mechanical',
 			!$this->isRunnable  => 'not_runnable',
 			$this->coins === 0  => 'no_coins',
-			// MAME's own "game doesn't work"; imperfect drivers (glitches, sound) are kept.
-			$this->driverStatus === 'preliminary' => 'not_working',
+			array_search($this->driverStatus, self::STATUSES, true) > array_search($status, self::STATUSES, true)
+				=> $this->driverStatus,
 			default             => $this->skippedControl(),
 		};
 	}
