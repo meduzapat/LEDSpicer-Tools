@@ -25,6 +25,7 @@ final class Launcher {
 		private readonly Mame $mame,
 		private readonly string $script,
 		private readonly Overrides $overrides,
+		private readonly Ignore $ignore,
 	) {
 		$this->resultsDir = "{$options->data}/results/{$mame->folder}";
 		$this->tempRoot   = sys_get_temp_dir() . '/mame-credits-' . getmypid();
@@ -54,12 +55,12 @@ final class Launcher {
 		// Skipped sets are counted, not stored: their reason comes from the index on every run.
 		// Keys of numeric set names ("1942") are integers: names come from the rows.
 		foreach ($results->rows() as $row) {
-			if ($machines[$row['set']]->skipReason() !== null)
+			if ($this->skipReason($machines[$row['set']]) !== null)
 				$results->remove($row['set']);
 		}
 		$skipped = [];
 		foreach ($this->select($machines) as $machine) {
-			$reason = $machine->skipReason();
+			$reason = $this->skipReason($machine);
 			if ($reason !== null) {
 				$key           = Status::Skipped->value . ":$reason";
 				$skipped[$key] = ($skipped[$key] ?? 0) + 1;
@@ -85,6 +86,10 @@ final class Launcher {
 			printf("%8d  %s\n", $count, $key);
 		printf("Elapsed %.1fs%s\n", microtime(true) - $begin, $this->interrupted ? ', interrupted' : '');
 		return $this->interrupted ? 130 : 0;
+	}
+
+	private function skipReason(Machine $machine): ?string {
+		return $machine->skipReason() ?? $this->ignore->cause($machine);
 	}
 
 	/**

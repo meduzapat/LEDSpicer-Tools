@@ -1,0 +1,9 @@
+# Sets not worth discovering, skipped as skipped:<cause>; clones follow their parent.
+# One entry per line: <set or driver source file> <cause>. Driver entries cover every set of the driver.
+
+# Fruit machines and video poker that -listxml does not label as gambling.
+barcrest/mpu4vid.cpp  fruit_machine
+bfm/bfmsys85.cpp      fruit_machine
+maygay/maygayv1.cpp   fruit_machine
+igt/peplus.cpp        video_poker
+merit/meritm.cpp      gambling
