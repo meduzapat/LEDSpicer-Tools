@@ -192,7 +192,7 @@ final class Launcher {
 			$machine,
 			$tempDir,
 			$this->mame->command($machine, $tempDir, $this->script, $this->options->seconds, $this->options->extra),
-			$env,
+			[...Mame::RUN_ENV, ...$env],
 			$this->options->timeout
 		);
 	}

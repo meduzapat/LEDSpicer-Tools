@@ -17,6 +17,9 @@ final class Mame {
 		'-joystickprovider', 'none', '-midiprovider', 'none',
 	];
 
+	/// Environment for every run: with a display present, SDL opens a window even under -video none.
+	public const RUN_ENV = ['SDL_VIDEODRIVER' => 'dummy'];
+
 	/// Writable directories redirected into the per-run temporary directory.
 	private const RUN_DIRECTORIES = ['nvram', 'cfg', 'diff', 'snapshot'];
 
