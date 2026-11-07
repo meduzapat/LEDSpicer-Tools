@@ -13,7 +13,7 @@ final class OverridesTest extends TestCase {
 
 	private function overrides(string $content): Overrides {
 		file_put_contents("$this->temp/o.txt", $content);
-		return new Overrides("$this->temp/o.txt");
+		return new Overrides("$this->temp/o.txt", '0.264');
 	}
 
 	private static function machine(string $name, string $cloneof = ''): Machine {

@@ -29,7 +29,8 @@ Each run uses fresh temporary NVRAM/CFG directories and ignores the user's ini f
 Arguments after `--` are passed to MAME.
 
 Per-set knowledge lives in `config/`, keyed by set, parent or driver source file, the most specific winning;
-sets not listed use the defaults:
+sets not listed use the defaults. A key may carry a MAME version constraint (`konami/ksys573.cpp@<0.270`),
+resolved once at load:
 
 | File | Purpose |
 |---|---|

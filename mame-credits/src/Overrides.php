@@ -11,8 +11,8 @@ final class Overrides {
 
 	private Rules $rules;
 
-	public function __construct(string $path) {
-		$this->rules = new Rules($path, true);
+	public function __construct(string $path, string $version) {
+		$this->rules = new Rules($path, true, $version);
 	}
 
 	/**

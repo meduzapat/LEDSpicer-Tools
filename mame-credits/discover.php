@@ -20,12 +20,13 @@ if ($options->help) {
 	exit(0);
 }
 $config   = __DIR__ . '/config';
+$mame     = new Mame('mame');
 $launcher = new Launcher(
 	$options,
-	new Mame('mame'),
+	$mame,
 	__DIR__ . '/lua/discover.lua',
-	new Overrides("$config/overrides.txt"),
-	new Rules("$config/ignore.txt", false),
-	new Tuning("$config/tuning.txt")
+	new Overrides("$config/overrides.txt", $mame->version),
+	new Rules("$config/ignore.txt", false, $mame->version),
+	new Tuning("$config/tuning.txt", $mame->version)
 );
 exit($launcher->run());

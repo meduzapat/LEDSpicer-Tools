@@ -13,7 +13,7 @@ final class TuningTest extends TestCase {
 
 	private function tuning(string $content): Tuning {
 		file_put_contents("$this->temp/t.txt", $content);
-		return new Tuning("$this->temp/t.txt");
+		return new Tuning("$this->temp/t.txt", '0.264');
 	}
 
 	public function testLimitsAndLuaSettings(): void {

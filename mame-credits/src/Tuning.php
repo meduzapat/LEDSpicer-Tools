@@ -15,8 +15,8 @@ final class Tuning {
 
 	private Rules $rules;
 
-	public function __construct(string $path) {
-		$this->rules = new Rules($path, true);
+	public function __construct(string $path, string $version) {
+		$this->rules = new Rules($path, true, $version);
 		foreach ($this->rules->entries() as $key => $values) {
 			foreach ($values as $name => $value) {
 				if (!in_array($name, ['seconds', 'timeout', ...self::LUA], true) || !ctype_digit($value))
