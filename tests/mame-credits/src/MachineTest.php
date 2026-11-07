@@ -34,6 +34,7 @@ final class MachineTest extends TestCase {
 			['adevice', 'device'],
 			['mech', 'mechanical'],
 			['console', 'no_coins'],
+			['broken', 'not_working'],
 			['poker', 'gambling'],
 			['mahjong', 'mahjong'],
 		];

@@ -50,6 +50,8 @@ final class Machine {
 			$this->isMechanical => 'mechanical',
 			!$this->isRunnable  => 'not_runnable',
 			$this->coins === 0  => 'no_coins',
+			// MAME's own "game doesn't work"; imperfect drivers (glitches, sound) are kept.
+			$this->driverStatus === 'preliminary' => 'not_working',
 			default             => $this->skippedControl(),
 		};
 	}
