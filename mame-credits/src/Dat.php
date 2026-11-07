@@ -18,6 +18,7 @@ final class Dat {
 		; Data from the tool's own discovery on %s.
 		;
 		; credits[N]=cpu,space,address,size,encoding  credit counter (N per player when credits are per player)
+		;   space "share": cpu is a memory share tag and address an offset in it (a memory mapper moves it)
 		;   encoding: bin, bcd, any (bin or bcd, never seen above 9), digits / digits_le (one decimal digit per byte)
 		; family=name        the credits of the @name: entry
 		; start_mode=        input (start input after a credit), coin (the coin starts), coin_buys_play

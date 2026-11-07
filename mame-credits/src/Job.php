@@ -76,11 +76,13 @@ final class Job {
 
 	/**
 	 * The same run again on the NVRAM this one saved, like switching the cabinet off and on:
-	 * games that initialize their NVRAM on first boot (robotron) only work from the second.
+	 * games that initialize their NVRAM on first boot (robotron) only work from the second, and
+	 * discover.lua lets it boot before coins (altbeast counts boot coins up to its credit limit).
 	 */
 	public function powerCycle(): self {
 		unlink($this->resultFile());
-		return new self($this->machine, $this->tempDir, $this->command, $this->env, $this->timeout, true);
+		$env = [...$this->env, 'MAMECREDITS_POWER_CYCLED' => '1'];
+		return new self($this->machine, $this->tempDir, $this->command, $env, $this->timeout, true);
 	}
 
 	/**

@@ -157,7 +157,8 @@ final class Launcher {
 				if ($row === null)
 					continue;
 				unset($running[$index]);
-				if (!$this->interrupted && !$job->powerCycled && $row['reason'] === 'no_reaction') {
+				// Also when coins went in but no credit was spent: coins during boot may have confused the search.
+				if (!$this->interrupted && !$job->powerCycled && in_array($row['reason'], ['no_reaction', 'coin_buys_play', 'no_start'], true)) {
 					$running[] = $job->powerCycle();
 					continue;
 				}

@@ -18,6 +18,9 @@ local SETTLE       = 1.0  -- after the coin, before reading the result
 local START_HOLD   = 0.5  -- start button pressed; shorter presses are missed (tmnt)
 local START_SETTLE = 3.0  -- after the start button, before reading the result
 local BOOT_MAX     = 90   -- coins inserted until a counter is confirmed, also after a reset
+-- Boot without coins on a power cycled run: games counting coins during boot may sit at their credit
+-- limit when it ends and take no more, even after a soft reset (altbeast).
+local QUIET_BOOT = 30
 -- Longer than the time Search's MAX_SPACING coins take: slow timers that look like
 -- "+1 every few coins" change in it.
 local LONG_IDLE = 10
@@ -150,49 +153,90 @@ local function startInputs(player)
 	return inputs
 end
 
+-- Whether a map entry reads RAM: plain RAM, or a bank the CPU can write (phoenix maps its RAM as a bank;
+-- ROM banks take no writes).
+local function isRam(entry)
+	local write = entry.write.handlertype
+	return entry.read.handlertype == "ram" or (entry.read.handlertype == "bank" and write ~= "none" and write ~= "nop" and write ~= "unmap")
+end
+
+-- Bytes first..last (0 based) of a share, as read_range gives a space's.
+local function shareBytes(share, first, last)
+	local parts = {}
+	for from = first, last, 4096 do
+		local bytes = {}
+		for offset = from, math.min(from + 4095, last) do
+			bytes[#bytes + 1] = share:read_u8(offset)
+		end
+		parts[#parts + 1] = string.char(table.unpack(bytes))
+	end
+	return table.concat(parts)
+end
+
+-- Bytes compared to tell whether a memory mapper moved a share away from its mapped address.
+local SAMPLE = 64
+
 -- Readable RAM of every address space, each share once; shares no space maps are read directly.
 -- A map names shares relative to the device owning the map, so shares match by their last tag part.
+-- A memory mapper (System 16B/18: Sega 315-5195) moves shares at runtime: a mapped share is read through
+-- the space while a sample of it matches the share, through the share once it does not.
 local function regions()
-	local list, mapped = {}, {}
+	local shares, used, list = {}, {}, {}
+	for tag, share in pairs(machine.memory.shares) do
+		shares[tag:match("[^:]+$")] = {tag = tag, share = share}
+	end
 	for tag, device in pairs(machine.devices) do
 		for name, space in pairs(device.spaces) do
 			for _, entry in ipairs(space.map.entries) do
-				local share = entry.share and entry.share:match("[^:]+$")
-				if entry.read.handlertype == "ram" and not (share and mapped[share]) then
-					if share then
-						mapped[share] = true
-					end
-					local first = entry.address_start
-					list[#list + 1] = {
-						cpu = tag, space = name, first = first, last = entry.address_end,
+				local held = entry.share and shares[entry.share:match("[^:]+$")]
+				if isRam(entry) and not (held and used[held.tag]) then
+					local first, last = entry.address_start, entry.address_end
+					local region  = {
+						cpu = tag, space = name, first = first, last = last,
 						rank = (tag == ":maincpu" and 0 or 2) + (entry.write.handlertype == "ram" and 0 or 1),
-						read = function() return space:read_range(first, entry.address_end, 8) end,
+						read = function() return space:read_range(first, last, 8) end,
 						peek = function(offset) return space:read_u8(first + offset - 1) end,
 					}
+					if held then
+						used[held.tag] = true
+						local share, size = held.share, math.min(held.share.size, last - first + 1)
+						region.shareTag = held.tag
+						-- Compares the bytes around offset (0 based); a ROM bank over part of the range (williams)
+						-- differs only there.
+						region.isMoved  = function(offset)
+							local from = math.max(0, offset - SAMPLE // 2)
+							local to   = math.min(size, from + SAMPLE) - 1
+							return space:read_range(first + from, first + to, 8) ~= shareBytes(share, from, to)
+						end
+						region.read = function()
+							return region.isMoved(0) and shareBytes(share, 0, size - 1) or space:read_range(first, first + size - 1, 8)
+						end
+						region.peek = function(offset) return share:read_u8(offset - 1) end
+					end
+					list[#list + 1] = region
 				end
 			end
 		end
 	end
 	for tag, share in pairs(machine.memory.shares) do
-		if not mapped[tag:match("[^:]+$")] then
+		if not used[tag] then
 			list[#list + 1] = {
-				cpu = tag, space = "share", first = 0, last = share.size - 1, rank = 4,
-				read = function()
-					local parts = {}
-					for first = 0, share.size - 1, 4096 do
-						local bytes = {}
-						for offset = first, math.min(first + 4095, share.size - 1) do
-							bytes[#bytes + 1] = share:read_u8(offset)
-						end
-						parts[#parts + 1] = string.char(table.unpack(bytes))
-					end
-					return table.concat(parts)
-				end,
+				cpu = tag, space = "share", first = 0, last = share.size - 1, rank = 4, shareTag = tag,
+				read = function() return shareBytes(share, 0, share.size - 1) end,
 				peek = function(offset) return share:read_u8(offset - 1) end,
 			}
 		end
 	end
 	return list
+end
+
+-- Where a counter is reported: its CPU address, or its share and offset when a mapper moved the share.
+local function location(found)
+	local region = found.region
+	if region.isMoved and region.isMoved(found.address - region.first) then
+		return region.shareTag, "share", found.address - region.first
+	end
+	return region.cpu, region.space, found.address
 end
 
 local function snapshot(list)
@@ -353,9 +397,13 @@ end
 -- The counter a hint describes, or nil when no scanned region holds its address.
 local function located(list, hint)
 	for _, region in ipairs(list) do
-		if region.cpu == hint.cpu and region.space == hint.space and hint.address >= region.first and hint.address <= region.last then
-			local offset = hint.address - region.first + 1
-			local found  = {region = region, offset = offset, address = hint.address, size = 1, encoding = hint.encoding}
+		-- A share location (space "share") names the share and an offset in it, see location().
+		local base = hint.space == "share" and region.shareTag == hint.cpu and region.first
+			or region.cpu == hint.cpu and region.space == hint.space and 0
+		local address = base and base + hint.address
+		if address and address >= region.first and address <= region.last then
+			local offset = address - region.first + 1
+			local found  = {region = region, offset = offset, address = address, size = 1, encoding = hint.encoding}
 			if hint.encoding == "digits" then
 				found.tens, found.offset, found.size = offset, offset + 1, 2
 			elseif hint.encoding == "digits_le" then
@@ -453,7 +501,9 @@ local function start(counters, inputs)
 			local paid, cost = {}, nil
 			for index, found in ipairs(counters) do
 				changed = changed or value(found) ~= before[index].credits
+				-- More than MAX_STEP credits gone is no start, the byte is no credit counter.
 				local loss = -change(found, before[index])
+				loss = loss <= Search.MAX_STEP and loss or 0
 				if loss > 0 and (cost == nil or loss < cost) then
 					cost, paid = loss, {}
 				end
@@ -491,6 +541,10 @@ local function discover()
 	end
 	if disabled then
 		softReset()
+	end
+
+	if os.getenv("MAMECREDITS_POWER_CYCLED") then
+		wait(QUIET_BOOT)
 	end
 
 	-- Hints first: a confirmed hint replaces the search; verify mode only checks them.
@@ -535,8 +589,9 @@ local function discover()
 	end
 	paid = token and paid
 	local chosen = (paid or counters)[1]
-	result.cpu, result.space = chosen.region.cpu, chosen.region.space
-	result.address, result.size, result.encoding = string.format("%x", chosen.address), chosen.size, chosen.encoding
+	local cpu, space, address = location(chosen)
+	result.cpu, result.space = cpu, space
+	result.address, result.size, result.encoding = string.format("%x", address), chosen.size, chosen.encoding
 	result.max_credits      = saturated and value(chosen) or ""
 	result.coins_per_credit = chosen.spacing .. "/" .. chosen.credits
 	result.candidates       = #(paid or counters)
@@ -552,13 +607,18 @@ local function discover()
 	result.credit_scope = "shared"
 	local second, coin2 = chosen, coins[1]
 	local added = coins[2] and adds(chosen, coins[2])
+	-- No coin slot adds more than MAX_STEP credits to a credit counter (mvsc2: a sound RAM byte took +52).
+	if added and added > Search.MAX_STEP then
+		result.status, result.reason = "found", "implausible"
+		return result
+	end
 	if added and added > 0 then
 		result.coins_per_credit = result.coins_per_credit .. "|" .. chosen.spacing .. "/" .. added
 	elseif added then
 		local own = findCounters(list, coins[2])
 		if #own > 0 then
 			result.credit_scope, second, coin2 = "per_player", own[1], coins[2]
-			result.address          = result.address .. string.format("|%x", second.address)
+			result.address          = result.address .. string.format("|%x", select(3, location(second)))
 			result.coins_per_credit = result.coins_per_credit .. "|" .. second.spacing .. "/" .. second.credits
 		end
 	end

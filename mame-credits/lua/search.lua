@@ -15,8 +15,9 @@ local CHUNK = 64
 local MAX_SPACING = 4
 Search.MAX_SPACING = MAX_SPACING
 
--- Highest credits per step expected.
+-- Highest credits per step expected, also the most a start may take.
 local MAX_STEP = 9
+Search.MAX_STEP = MAX_STEP
 
 -- Offsets (1 based) where two equally long strings differ.
 function Search.diff(a, b)
