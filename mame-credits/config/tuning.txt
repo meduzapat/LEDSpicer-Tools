@@ -1,0 +1,18 @@
+# Run settings for sets that need other than the defaults; everything else uses the defaults.
+# One entry per line: <set, parent or driver source file> <name>=<value> ...; a set's own entry wins.
+#   seconds     emulated seconds per run (default --seconds)
+#   timeout     wall clock seconds per run (default --timeout)
+#   boot        emulated seconds coins go in while looking for the counter (default 90)
+#   quiet_boot  emulated seconds booting without coins before the search (default only on a power cycle, 30)
+
+# CD, HDD and cassette loading takes minutes (timeouts in the 0.264 run).
+konami/ksys573.cpp   seconds=900 timeout=1800 boot=300
+konami/kpython2.cpp  seconds=900 timeout=1800 boot=300
+konami/djmain.cpp    seconds=900 timeout=1800 boot=300
+dataeast/decocass.cpp seconds=900 timeout=1800 boot=300
+sega/chihiro.cpp     seconds=900 timeout=1800 boot=300
+
+# Coins during boot push credits to the limit, kept through a soft reset (altbeast, shdancer):
+# skip the first search that is known to fail.
+sega/segas16b.cpp    quiet_boot=30
+sega/segas18.cpp     quiet_boot=30

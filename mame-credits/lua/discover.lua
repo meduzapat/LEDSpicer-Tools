@@ -11,16 +11,22 @@ local here     = debug.getinfo(1, "S").source:match("^@(.-)[^/]*$")
 local Search   = dofile(here .. "search.lua")
 local patterns = dofile(here .. "patterns.lua")
 
+-- Per-set settings from config/tuning.txt, "name=value,...".
+local tuning = {}
+for name, value in (os.getenv("MAMECREDITS_TUNING") or ""):gmatch("(%w+)=(%d+)") do
+	tuning[name] = tonumber(value)
+end
+
 -- Emulated seconds.
 local IDLE         = 1.0  -- quiet window that exposes self changing bytes
 local HOLD         = 0.1  -- coin switch closed
 local SETTLE       = 1.0  -- after the coin, before reading the result
 local START_HOLD   = 0.5  -- start button pressed; shorter presses are missed (tmnt)
 local START_SETTLE = 3.0  -- after the start button, before reading the result
-local BOOT_MAX     = 90   -- coins inserted until a counter is confirmed, also after a reset
--- Boot without coins on a power cycled run: games counting coins during boot may sit at their credit
--- limit when it ends and take no more, even after a soft reset (altbeast).
-local QUIET_BOOT = 30
+local BOOT_MAX     = tuning.boot or 90 -- coins inserted until a counter is confirmed, also after a reset
+-- Boot without coins on a power cycled run, or on every run when tuned: games counting coins during boot
+-- may sit at their credit limit when it ends and take no more, even after a soft reset (altbeast).
+local QUIET_BOOT = tuning.quiet_boot or 30
 -- Longer than the time Search's MAX_SPACING coins take: slow timers that look like
 -- "+1 every few coins" change in it.
 local LONG_IDLE = 10
@@ -543,7 +549,7 @@ local function discover()
 		softReset()
 	end
 
-	if os.getenv("MAMECREDITS_POWER_CYCLED") then
+	if os.getenv("MAMECREDITS_POWER_CYCLED") or tuning.quiet_boot then
 		wait(QUIET_BOOT)
 	end
 

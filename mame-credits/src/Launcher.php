@@ -25,7 +25,8 @@ final class Launcher {
 		private readonly Mame $mame,
 		private readonly string $script,
 		private readonly Overrides $overrides,
-		private readonly Ignore $ignore,
+		private readonly Rules $ignore,
+		private readonly Tuning $tuning,
 	) {
 		$this->resultsDir = "{$options->data}/results/{$mame->folder}";
 		$this->tempRoot   = sys_get_temp_dir() . '/mame-credits-' . getmypid();
@@ -89,7 +90,7 @@ final class Launcher {
 	}
 
 	private function skipReason(Machine $machine): ?string {
-		return $machine->skipReason() ?? $this->ignore->cause($machine);
+		return $machine->skipReason() ?? $this->ignore->lookup($machine)['cause'] ?? null;
 	}
 
 	/**
@@ -204,12 +205,13 @@ final class Launcher {
 		$env     = $this->options->verify
 			? ['MAMECREDITS_MODE' => 'verify', 'MAMECREDITS_HINTS' => 'verify,' . Hints::location($results->row($machine->name))]
 			: ['MAMECREDITS_HINTS' => $this->hints->for($machine, $results)];
+		[$seconds, $timeout] = $this->tuning->limits($machine, $this->options->seconds, $this->options->timeout);
 		return new Job(
 			$machine,
 			$tempDir,
-			$this->mame->command($machine, $tempDir, $this->script, $this->options->seconds, $this->options->extra),
-			[...Mame::RUN_ENV, ...$env],
-			$this->options->timeout
+			$this->mame->command($machine, $tempDir, $this->script, $seconds, $this->options->extra),
+			[...Mame::RUN_ENV, ...$env, 'MAMECREDITS_TUNING' => $this->tuning->lua($machine)],
+			$timeout
 		);
 	}
 
@@ -222,14 +224,14 @@ final class Launcher {
 		if ($this->options->verify) {
 			// The stored result stands; the run only confirms it, at the same location.
 			$stored = $results->row($row['set']);
-			$row    = $this->overrides->apply($row, $job->machine->cloneof);
+			$row    = $this->overrides->apply($row, $job->machine);
 			$same   = $row['status'] === Status::Success->value && Hints::location($row) === Hints::location($stored);
 			$results->add([...$stored, 'verified' => $same ? 'yes' : 'no']);
 			return;
 		}
 		$family = $this->hints->family($job->machine);
 		$row    = [
-			...$this->overrides->apply($row, $job->machine->cloneof),
+			...$this->overrides->apply($row, $job->machine),
 			'family'      => $family !== '' ? $family : $job->machine->cloneof,
 			'power_cycle' => $job->powerCycled ? 'yes' : 'no',
 		];

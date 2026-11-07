@@ -19,4 +19,13 @@ if ($options->help) {
 	echo Options::USAGE;
 	exit(0);
 }
-exit((new Launcher($options, new Mame('mame'), __DIR__ . '/lua/discover.lua', new Overrides(__DIR__ . '/overrides.txt'), new Ignore(__DIR__ . '/ignore.txt')))->run());
+$config   = __DIR__ . '/config';
+$launcher = new Launcher(
+	$options,
+	new Mame('mame'),
+	__DIR__ . '/lua/discover.lua',
+	new Overrides("$config/overrides.txt"),
+	new Rules("$config/ignore.txt", false),
+	new Tuning("$config/tuning.txt")
+);
+exit($launcher->run());

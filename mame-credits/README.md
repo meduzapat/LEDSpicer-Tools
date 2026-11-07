@@ -28,9 +28,14 @@ Runs every set with coins, or a list (`--sets a,b` or `--sets @file`), resumable
 Each run uses fresh temporary NVRAM/CFG directories and ignores the user's ini files and plugins; only the rompath is taken from MAME's configuration.
 Arguments after `--` are passed to MAME.
 
-`ignore.txt` lists sets and drivers not worth discovering (fruit machines, poker…), each with its cause.
-`overrides.txt` holds reviewed behaviour discovery cannot measure (e.g. games where coins buy health);
-it is applied over the discovered result of those sets.
+Per-set knowledge lives in `config/`, keyed by set, parent or driver source file, the most specific winning;
+sets not listed use the defaults:
+
+| File | Purpose |
+|---|---|
+| `ignore.txt` | Sets not worth discovering (fruit machines, poker…), each with its cause. |
+| `tuning.txt` | Run settings for sets needing other than the defaults (slow CD/HDD systems, boot behaviour). |
+| `overrides.txt` | Reviewed behaviour discovery cannot measure (e.g. coins buying health), applied over the result. |
 
 Typical cycle: discover, `--verify` (a second run on fresh directories confirms each success), then `--dat`.
 
