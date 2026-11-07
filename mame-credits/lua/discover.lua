@@ -182,6 +182,10 @@ end
 -- Bytes compared to tell whether a memory mapper moved a share away from its mapped address.
 local SAMPLE = 64
 
+-- Largest share read from Lua, byte by byte: bigger ones (I/O board buffers, flash, graphics; ksys573 has a
+-- 32 MB one) would stall every snapshot and hold no credit counter. Mapped ones are still read through the space.
+local SHARE_MAX = 0x100000
+
 -- Readable RAM of every address space, each share once; shares no space maps are read directly.
 -- A map names shares relative to the device owning the map, so shares match by their last tag part.
 -- A memory mapper (System 16B/18: Sega 315-5195) moves shares at runtime: a mapped share is read through
@@ -196,8 +200,11 @@ local function regions()
 			for _, entry in ipairs(space.map.entries) do
 				local held = entry.share and shares[entry.share:match("[^:]+$")]
 				if isRam(entry) and not (held and used[held.tag]) then
+					if held and held.share.size > SHARE_MAX then
+						used[held.tag], held = true, nil
+					end
 					local first, last = entry.address_start, entry.address_end
-					local region  = {
+					local region = {
 						cpu = tag, space = name, first = first, last = last,
 						rank = (tag == ":maincpu" and 0 or 2) + (entry.write.handlertype == "ram" and 0 or 1),
 						read = function() return space:read_range(first, last, 8) end,
@@ -225,7 +232,7 @@ local function regions()
 		end
 	end
 	for tag, share in pairs(machine.memory.shares) do
-		if not used[tag] then
+		if not used[tag] and share.size <= SHARE_MAX then
 			list[#list + 1] = {
 				cpu = tag, space = "share", first = 0, last = share.size - 1, rank = 4, shareTag = tag,
 				read = function() return shareBytes(share, 0, share.size - 1) end,
