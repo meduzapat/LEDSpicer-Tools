@@ -252,7 +252,10 @@ local function location(found)
 	return region.cpu, region.space, found.address
 end
 
+-- Collects first: snapshots of large RAM are tens of megabytes each, and the incremental collector lets
+-- old ones pile up to gigabytes over parallel runs.
 local function snapshot(list)
+	collectgarbage()
 	local snap = {}
 	for index, region in ipairs(list) do
 		snap[index] = region.read()

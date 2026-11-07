@@ -15,18 +15,27 @@ local CHUNK = 64
 local MAX_SPACING = 4
 Search.MAX_SPACING = MAX_SPACING
 
+-- Memory bounds for boards with tens of megabytes of RAM, where coins may change millions of bytes:
+-- a region changing more bytes than CHANGED_MAX in one coin seeds nothing for that coin, and seeding
+-- stops at CANDIDATES_MAX candidates (about 150 MB of Lua tables).
+local CHANGED_MAX    = 2000000
+local CANDIDATES_MAX = 1000000
+
 -- Highest credits per step expected, also the most a start may take.
 local MAX_STEP = 9
 Search.MAX_STEP = MAX_STEP
 
--- Offsets (1 based) where two equally long strings differ.
-function Search.diff(a, b)
+-- Offsets (1 based) where two equally long strings differ, nil when more than `limit` do.
+function Search.diff(a, b, limit)
 	local changed = {}
 	for first = 1, #a, CHUNK do
 		local last = first + CHUNK - 1
 		if a:sub(first, last) ~= b:sub(first, last) then
 			for offset = first, math.min(last, #a) do
 				if a:byte(offset) ~= b:byte(offset) then
+					if #changed == limit then
+						return nil
+					end
 					changed[#changed + 1] = offset
 				end
 			end
@@ -109,14 +118,19 @@ function Search:idle(before, after, changes)
 	end
 end
 
--- Adds every byte that stepped credits and is not a candidate yet.
+-- Adds every byte that stepped credits and is not a candidate yet, within the memory bounds.
 function Search:seed(before, after)
+	local count = self:count()
 	for region = 1, #before do
-		for _, offset in ipairs(Search.diff(before[region], after[region])) do
+		for _, offset in ipairs(Search.diff(before[region], after[region], CHANGED_MAX) or {}) do
 			local candidate = key(region, offset)
 			local encoding  = steps(before[region]:byte(offset), after[region]:byte(offset))
 			if next(encoding) and not self.candidates[candidate] then
+				if count == CANDIDATES_MAX then
+					return
+				end
 				self.candidates[candidate] = {value = after[region]:byte(offset), last = self.coins, changes = 1, encoding = encoding}
+				count = count + 1
 			end
 		end
 	end

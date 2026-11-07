@@ -9,3 +9,7 @@ bfm/bfmsys85.cpp      fruit_machine
 maygay/maygayv1.cpp   fruit_machine
 igt/peplus.cpp        video_poker
 merit/meritm.cpp      gambling
+
+# Not working in MAME (every set preliminary) and far slower than real time.
+sega/chihiro.cpp@<=0.264     not_working
+konami/kpython2.cpp@<=0.264  not_working

@@ -7,12 +7,11 @@
 #   boot        emulated seconds coins go in while looking for the counter (default 90)
 #   quiet_boot  emulated seconds booting without coins before the search (default only on a power cycle, 30)
 
-# CD, HDD and cassette loading takes minutes (timeouts in the 0.264 run).
+# CD, HDD and cassette loading takes minutes (timeouts in the 0.264 run); the DECO cassette loads for
+# about 3 emulated minutes before the game takes coins.
 konami/ksys573.cpp   seconds=900 timeout=1800 boot=300
-konami/kpython2.cpp  seconds=900 timeout=1800 boot=300
 konami/djmain.cpp    seconds=900 timeout=1800 boot=300
-dataeast/decocass.cpp seconds=900 timeout=1800 boot=300
-sega/chihiro.cpp     seconds=900 timeout=1800 boot=300
+dataeast/decocass.cpp seconds=1500 quiet_boot=180
 
 # Coins during boot push credits to the limit, kept through a soft reset (altbeast, shdancer):
 # skip the first search that is known to fail.
