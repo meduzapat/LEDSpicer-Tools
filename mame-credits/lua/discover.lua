@@ -521,13 +521,18 @@ local function discover()
 		return result
 	end
 
-	-- A game that started by itself is tested again from a reset: coins, then Start before its timer runs out.
-	if counters[1].autoStart then
-		result.auto_start = "yes"
+	-- Without a credit taken, Start is tried again from a reset: a coin, then Start at once, before a start
+	-- countdown runs out (PGM: 6 s) and the game starts by itself.
+	result.auto_start = counters[1].autoStart and "yes" or "no"
+	local token, cost, paid
+	if not counters[1].autoStart then
+		token, cost, paid = start(counters, startInputs(1))
+	end
+	if not token then
 		softReset()
 		ready(counters[1], coins[1], 1, boot)
+		token, cost, paid = start(counters, startInputs(1))
 	end
-	local token, cost, paid = start(counters, startInputs(1))
 	paid = token and paid
 	local chosen = (paid or counters)[1]
 	result.cpu, result.space = chosen.region.cpu, chosen.region.space
