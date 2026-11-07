@@ -13,8 +13,8 @@ final class JobTest extends TestCase {
 	use TempDirectory;
 
 	private function runJob(string $set, int $timeout): array {
-		$machine = Machine::fromRow([$set, '', '', '', '', 'good', '1', '1', '0', '0', '0', '1']);
-		$job     = new Job($machine, "$this->temp/$set", [__DIR__ . '/../../mocks/mame', $set], $timeout);
+		$machine = Machine::fromRow([$set, '', '', '', '', 'good', '1', '1', '0', '0', '0', '1', '']);
+		$job     = new Job($machine, "$this->temp/$set", [__DIR__ . '/../../mocks/mame', $set], [], $timeout);
 		while (($row = $job->poll()) === null)
 			usleep(10000);
 		return $row;
@@ -22,7 +22,7 @@ final class JobTest extends TestCase {
 
 	public static function outcomes(): array {
 		return [
-			['ok', 'found', 'boot_only'],
+			['ok', 'success', ''],
 			['missing', 'error', 'missing_files'],
 			['crash', 'error', 'fatal'],
 			['noresult', 'error', 'timeout'],

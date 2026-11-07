@@ -12,7 +12,15 @@ final class Machine {
 	/// Serialized field order in the index cache.
 	public const FIELDS = [
 		'name', 'sourcefile', 'cloneof', 'romof', 'bios', 'driver_status',
-		'players', 'coins', 'isbios', 'isdevice', 'ismechanical', 'runnable',
+		'players', 'coins', 'isbios', 'isdevice', 'ismechanical', 'runnable', 'controls',
+	];
+
+	/// Ignored kinds of machine: -listxml control type => skip reason. Gambling covers poker, slots and casino;
+	/// MAME also labels the BFM Scorpion 4 fruit machines mahjong and hanafuda.
+	public const SKIPPED_CONTROLS = [
+		'gambling' => 'gambling',
+		'mahjong'  => 'mahjong',
+		'hanafuda' => 'mahjong',
 	];
 
 	public function __construct(
@@ -28,6 +36,8 @@ final class Machine {
 		public readonly bool $isDevice,
 		public readonly bool $isMechanical,
 		public readonly bool $isRunnable,
+		/** @var string[] -listxml control types */
+		public readonly array $controls,
 	) {}
 
 	/**
@@ -40,8 +50,16 @@ final class Machine {
 			$this->isMechanical => 'mechanical',
 			!$this->isRunnable  => 'not_runnable',
 			$this->coins === 0  => 'no_coins',
-			default             => null,
+			default             => $this->skippedControl(),
 		};
+	}
+
+	private function skippedControl(): ?string {
+		foreach ($this->controls as $control) {
+			if (isset(self::SKIPPED_CONTROLS[$control]))
+				return self::SKIPPED_CONTROLS[$control];
+		}
+		return null;
 	}
 
 	/**
@@ -74,6 +92,10 @@ final class Machine {
 			$node->getAttribute('isdevice') === 'yes',
 			$node->getAttribute('ismechanical') === 'yes',
 			$node->getAttribute('runnable') !== 'no',
+			$input ? array_values(array_unique(array_map(
+				fn(\DOMElement $control): string => $control->getAttribute('type'),
+				iterator_to_array($input->getElementsByTagName('control'))
+			))) : [],
 		);
 	}
 
@@ -85,6 +107,7 @@ final class Machine {
 			$row[0], $row[1], $row[2], $row[3], $row[4], $row[5],
 			(int) $row[6], (int) $row[7],
 			$row[8] === '1', $row[9] === '1', $row[10] === '1', $row[11] === '1',
+			$row[12] === '' ? [] : explode(',', $row[12]),
 		);
 	}
 
@@ -97,6 +120,7 @@ final class Machine {
 			(string) $this->players, (string) $this->coins,
 			(string) (int) $this->isBios, (string) (int) $this->isDevice,
 			(string) (int) $this->isMechanical, (string) (int) $this->isRunnable,
+			implode(',', $this->controls),
 		];
 	}
 }

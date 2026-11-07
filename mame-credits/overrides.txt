@@ -1,0 +1,9 @@
+# Reviewed behaviour discovery cannot measure, applied over a set's discovered result.
+# One set per line: <set> <column>=<value> ...; columns are results.tsv columns.
+# A set with an override that discovery found (status found or success) becomes success, reason override.
+
+# Coins buy health; each player's button 2 (Magic) joins, a slot per player.
+gauntlet start_mode=coin_buys_play credit_scope=per_player start1_field=P1_BUTTON2 start2_field=P2_BUTTON2
+
+# The coin starts the game for both players; there is no start input.
+gunfight start_mode=coin
