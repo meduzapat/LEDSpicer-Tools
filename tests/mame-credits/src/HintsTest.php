@@ -12,7 +12,7 @@ final class HintsTest extends TestCase {
 	use TempDirectory;
 
 	private static function machine(string $name, string $cloneof, string $romof, bool $isBios = false): Machine {
-		return new Machine($name, '', $cloneof, $romof, '', 'good', 2, 2, $isBios, false, false, true);
+		return new Machine($name, '', $cloneof, $romof, '', 'good', 2, 2, $isBios, false, false, true, []);
 	}
 
 	public function testFamilyLocationNeedsEnoughAgreeingParents(): void {

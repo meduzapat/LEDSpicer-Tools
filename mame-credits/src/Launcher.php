@@ -51,14 +51,22 @@ final class Launcher {
 		}
 		$this->hints = new Hints($machines, "{$this->options->data}/results", $this->mame->folder, $results);
 		$queue       = [];
+		// Skipped sets are counted, not stored: their reason comes from the index on every run.
+		// Keys of numeric set names ("1942") are integers: names come from the rows.
+		foreach ($results->rows() as $row) {
+			if ($machines[$row['set']]->skipReason() !== null)
+				$results->remove($row['set']);
+		}
+		$skipped = [];
 		foreach ($this->select($machines) as $machine) {
-			if (!$this->isQueued($results->row($machine->name)))
-				continue;
 			$reason = $machine->skipReason();
-			if ($reason === null)
+			if ($reason !== null) {
+				$key           = Status::Skipped->value . ":$reason";
+				$skipped[$key] = ($skipped[$key] ?? 0) + 1;
+			}
+			elseif ($this->isQueued($results->row($machine->name))) {
 				$queue[] = $machine;
-			else
-				$results->add(['set' => $machine->name, 'status' => Status::Skipped->value, 'reason' => $reason, 'mame_version' => $this->mame->build]);
+			}
 		}
 
 		pcntl_async_signals(true);
@@ -71,7 +79,9 @@ final class Launcher {
 		$results->save();
 		rmdir($this->tempRoot);
 
-		foreach ($results->summary() as $key => $count)
+		$summary = [...$results->summary(), ...$skipped];
+		ksort($summary);
+		foreach ($summary as $key => $count)
 			printf("%8d  %s\n", $count, $key);
 		printf("Elapsed %.1fs%s\n", microtime(true) - $begin, $this->interrupted ? ', interrupted' : '');
 		return $this->interrupted ? 130 : 0;
@@ -218,7 +228,7 @@ final class Launcher {
 			'power_cycle' => $job->powerCycled ? 'yes' : 'no',
 		];
 		$this->hints->record($row);
-		$results->add([...$row, 'mame_version' => $this->mame->build]);
+		$results->add($row);
 		$log = "$this->resultsDir/logs/{$row['set']}.log";
 		if ($row['status'] === Status::Error->value)
 			rename($job->logFile(), $log);

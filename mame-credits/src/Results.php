@@ -15,7 +15,7 @@ final class Results {
 		'cpu', 'space', 'address', 'size', 'encoding', 'max_credits', 'coins_per_credit', 'credit_scope',
 		'start_mode', 'start1_field', 'start1_cost', 'start2_field', 'start2_cost',
 		'freeplay', 'freeplay_default', 'dips', 'lockout_suspected', 'auto_start', 'power_cycle', 'candidates', 'verified',
-		'mame_version', 'elapsed',
+		'elapsed',
 	];
 
 	/** @var array<string, array<string, string>> rows keyed by set, then column. */
@@ -74,6 +74,13 @@ final class Results {
 		$row = array_merge(array_fill_keys(self::COLUMNS, ''), $values);
 		$this->rows[$row['set']] = $row;
 		fwrite($this->journal, Tsv::line($row));
+	}
+
+	/**
+	 * Forgets a set's row, e.g. one that is skipped now; the file changes on save().
+	 */
+	public function remove(string $set): void {
+		unset($this->rows[$set]);
 	}
 
 	/**

@@ -34,13 +34,9 @@ final class LauncherTest extends TestCase {
 
 	public function testRunsAndClassifiesEverySet(): void {
 		$this->assertSame([
-			'abios'    => 'skipped:bios',
-			'adevice'  => 'skipped:device',
-			'console'  => 'skipped:no_coins',
 			'crash'    => 'error:fatal',
 			'deaf'     => 'found:needs_setup',
 			'hang'     => 'error:timeout',
-			'mech'     => 'skipped:mechanical',
 			'missing'  => 'error:missing_files',
 			'noresult' => 'error:timeout',
 			'nvinit'   => 'found:boot_only',
@@ -48,6 +44,13 @@ final class LauncherTest extends TestCase {
 			'okclone'  => 'success:',
 		], $this->discover());
 		$this->assertFileExists("$this->temp/results/mame_0999/logs/crash.log");
+	}
+
+	public function testNowSkippedSetsLeaveTheResults(): void {
+		$this->discover('--sets', 'ok');
+		$rows = Results::read($this->path());
+		Tsv::write($this->path(), Results::COLUMNS, [...$rows, 'poker' => [...$rows['ok'], 'set' => 'poker']]);
+		$this->assertSame(['ok' => 'success:'], $this->discover('--sets', 'ok,poker'));
 	}
 
 	public function testPresentKeepsSetsAndClonesFoundInRompath(): void {

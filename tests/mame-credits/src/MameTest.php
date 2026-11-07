@@ -27,7 +27,7 @@ final class MameTest extends TestCase {
 	}
 
 	public function testCommand(): void {
-		$machine = Machine::fromRow(['ok', '', '', '', 'bios2', 'good', '2', '2', '0', '0', '0', '1']);
+		$machine = Machine::fromRow(['ok', '', '', '', 'bios2', 'good', '2', '2', '0', '0', '0', '1', '']);
 		$command = self::mame()->command($machine, '/t', 's.lua', 30, ['-extra']);
 		$this->assertSame('ok', $command[1]);
 		$this->assertContains('-noreadconfig', $command);

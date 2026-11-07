@@ -14,7 +14,7 @@ final class IndexTest extends TestCase {
 	public function testBuildsThenReadsCache(): void {
 		$mame     = new Mame(__DIR__ . '/../../mocks/mame');
 		$machines = Index::load($mame, $this->temp);
-		$this->assertCount(12, $machines);
+		$this->assertCount(14, $machines);
 		$this->assertSame('bios2', $machines['ok']->bios);
 		$this->assertSame(['index.tsv'], array_values(array_diff(scandir($this->temp), ['.', '..'])));
 		$this->assertEquals($machines, Index::load($mame, $this->temp));

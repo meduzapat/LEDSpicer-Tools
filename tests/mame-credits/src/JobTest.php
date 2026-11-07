@@ -13,7 +13,7 @@ final class JobTest extends TestCase {
 	use TempDirectory;
 
 	private function runJob(string $set, int $timeout): array {
-		$machine = Machine::fromRow([$set, '', '', '', '', 'good', '1', '1', '0', '0', '0', '1']);
+		$machine = Machine::fromRow([$set, '', '', '', '', 'good', '1', '1', '0', '0', '0', '1', '']);
 		$job     = new Job($machine, "$this->temp/$set", [__DIR__ . '/../../mocks/mame', $set], [], $timeout);
 		while (($row = $job->poll()) === null)
 			usleep(10000);

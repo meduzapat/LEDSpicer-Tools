@@ -19,13 +19,13 @@ final class DatTest extends TestCase {
 	}
 
 	public function testFamiliesSharedEntriesAndVerifiedOnly(): void {
-		$machines = ['bios' => new Machine('bios', '', '', '', '', 'good', 2, 2, true, false, false, true)];
+		$machines = ['bios' => new Machine('bios', '', '', '', '', 'good', 2, 2, true, false, false, true, [])];
 		$rows     = [];
 		foreach (['p1', 'p2', 'p3'] as $name) {
-			$machines[$name] = new Machine($name, '', '', 'bios', '', 'good', 2, 2, false, false, false, true);
+			$machines[$name] = new Machine($name, '', '', 'bios', '', 'good', 2, 2, false, false, false, true, []);
 			$rows[$name]     = self::row($name, 'bios', 'd00034');
 		}
-		$machines['solo']  = new Machine('solo', '', '', '', '', 'good', 2, 2, false, false, false, true);
+		$machines['solo']  = new Machine('solo', '', '', '', '', 'good', 2, 2, false, false, false, true, []);
 		$rows['solo']      = self::row('solo', '', '4e6e|4e6f');
 		$rows['unchecked'] = self::row('unchecked', '', '1234', 'no');
 		Dat::write("$this->temp/credits.dat", $rows, $machines, 'test');
