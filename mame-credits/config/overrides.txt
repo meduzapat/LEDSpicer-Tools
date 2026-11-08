@@ -7,8 +7,11 @@
 # Coins buy health; each player's button 2 (Magic) joins, a slot per player.
 gauntlet start_mode=coin_buys_play credit_scope=per_player start1_field=P1_BUTTON2 start2_field=P2_BUTTON2
 
-# The coin starts the game for both players; there is no start input.
+# The coin starts the game; there is no start input (screenshots: Gun Fight's timer runs, Sea Wolf shows
+# TIME 61, Final Lap's race is on the starting grid right after the coin).
 gunfight start_mode=coin
+seawolf  start_mode=coin
+finallap start_mode=coin
 
 # Sells play time per coin; the player starts by pressing a game's start (PlayChoice-10 menu).
 nintendo/playch10.cpp start_mode=coin_buys_play
