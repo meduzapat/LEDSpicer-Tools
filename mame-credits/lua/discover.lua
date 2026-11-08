@@ -159,11 +159,20 @@ local function startInputs(player)
 	return inputs
 end
 
--- Whether a map entry reads RAM: plain RAM, or a bank the CPU can write (phoenix maps its RAM as a bank;
--- ROM banks take no writes).
-local function isRam(entry)
+-- Whether a bank has memory selected: reading one without crashes MAME (bfcobra, multigam), and
+-- selecting its own entry again fails only then.
+local function isSelected(bank)
+	local current = bank.entry
+	return pcall(function() bank.entry = current end)
+end
+
+-- Whether a map entry reads RAM: plain RAM, or a selected bank the CPU can write (phoenix maps its RAM as
+-- a bank; ROM banks take no writes). Banks are keyed by their last tag component.
+local function isRam(entry, banks)
 	local write = entry.write.handlertype
-	return entry.read.handlertype == "ram" or (entry.read.handlertype == "bank" and write ~= "none" and write ~= "nop" and write ~= "unmap")
+	return entry.read.handlertype == "ram"
+		or (entry.read.handlertype == "bank" and write ~= "none" and write ~= "nop" and write ~= "unmap"
+			and isSelected(banks[entry.read.tag:match("[^:]+$")]))
 end
 
 -- Bytes first..last (0 based) of a share, as read_range gives a space's.
@@ -195,15 +204,18 @@ local REGION_MAX = 0x4000000
 -- A memory mapper (System 16B/18: Sega 315-5195) moves shares at runtime: a mapped share is read through
 -- the space while a sample of it matches the share, through the share once it does not.
 local function regions()
-	local shares, used, list = {}, {}, {}
+	local shares, banks, used, list = {}, {}, {}, {}
 	for tag, share in pairs(machine.memory.shares) do
 		shares[tag:match("[^:]+$")] = {tag = tag, share = share}
+	end
+	for tag, bank in pairs(machine.memory.banks) do
+		banks[tag:match("[^:]+$")] = bank
 	end
 	for tag, device in pairs(machine.devices) do
 		for name, space in pairs(device.spaces) do
 			for _, entry in ipairs(space.map.entries) do
 				local held = entry.share and shares[entry.share:match("[^:]+$")]
-				if isRam(entry) and not (held and used[held.tag]) and entry.address_end - entry.address_start < REGION_MAX then
+				if isRam(entry, banks) and not (held and used[held.tag]) and entry.address_end - entry.address_start < REGION_MAX then
 					-- Shares are counted in bytes: only a byte addressed space (shift 0) lines up with them
 					-- (tickee's TMS34010 addresses bits).
 					if held and (held.share.size > SHARE_MAX or space.shift ~= 0) then
