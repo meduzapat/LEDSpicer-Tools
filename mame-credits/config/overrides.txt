@@ -9,3 +9,6 @@ gauntlet start_mode=coin_buys_play credit_scope=per_player start1_field=P1_BUTTO
 
 # The coin starts the game for both players; there is no start input.
 gunfight start_mode=coin
+
+# Sells play time per coin; the player starts by pressing a game's start (PlayChoice-10 menu).
+nintendo/playch10.cpp start_mode=coin_buys_play

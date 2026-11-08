@@ -9,3 +9,13 @@ bfm/bfmsys85.cpp      fruit_machine
 maygay/maygayv1.cpp   fruit_machine
 igt/peplus.cpp        video_poker
 merit/meritm.cpp      gambling
+
+# Bar touchscreen trivia and gambling (Midway Touchmaster).
+midway/tmaster.cpp  bar_touchscreen
+
+# Neo Geo MVS board test sets and gambling.
+ng_mv1    test_board
+ng_mv2f   test_board
+ng_mv4f   test_board
+jockeygp  gambling
+vliner    gambling

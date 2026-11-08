@@ -299,7 +299,7 @@ local function counter(list, candidate, state)
 		candidate = candidate, state = state, region = region, offset = offset, address = region.first + offset - 1, size = 1,
 		encoding = Search.encodingName(state.encoding),
 		credits = state.encoding.bcd or state.encoding.bin or state.encoding.digit, spacing = state.spacing,
-		autoStart = state.autoStart,
+		autoStart = state.autoStart, limit = state.limit,
 	}
 	if found.encoding == "digits" then
 		found.tens = isDigit(region.peek(offset - 1)) and offset - 1 or isDigit(region.peek(offset + 1)) and offset + 1
@@ -391,9 +391,19 @@ local function findCounters(list, coin)
 		for _ = 1, leader.spacing do
 			cycle()
 		end
-		-- The leader stopping while coins go in is the credit limit, not a wrong candidate.
+		-- A confirmed candidate that stopped while coins go in hit its credit limit (myhero stops at 9 while
+		-- its coin total goes on): it stays, at its limit; one that changed any other way is gone.
+		for candidate, state in pairs(saved.candidates) do
+			local index, offset = Search.split(candidate)
+			if state.changes >= CONFIRM_CHANGES and search.candidates[candidate] == nil
+				and list[index].peek(offset) == state.value then
+				state.limit, search.candidates[candidate] = state.value, state
+			end
+		end
+		-- The leader stopping is the credit limit for the whole search.
 		-- A dropped leader may be seeded again by the same coin: compare the state, not the key.
 		if search.candidates[leader.candidate] ~= leader.state then
+			saved.candidates[leader.candidate].limit = leader.state.value
 			search:restore(saved)
 			saturated = true
 		end
@@ -612,7 +622,7 @@ local function discover()
 	local cpu, space, address = location(chosen)
 	result.cpu, result.space = cpu, space
 	result.address, result.size, result.encoding = string.format("%x", address), chosen.size, chosen.encoding
-	result.max_credits      = saturated and value(chosen) or ""
+	result.max_credits      = chosen.limit and Search.decode(chosen.limit, chosen.encoding) or ""
 	result.coins_per_credit = chosen.spacing .. "/" .. chosen.credits
 	result.candidates       = #(paid or counters)
 	-- Coins that only ever add (health, play time) and inputs that never touch them: no credit is spent.
