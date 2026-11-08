@@ -237,8 +237,9 @@ local function regions()
 	end
 	-- RAM devices: memory a CPU installs at startup instead of mapping it (main RAM of the PlayStation based
 	-- boards: ZN, Namco System 11/12, System 573), read through their save state items like cheatfind does.
+	-- A RAM device is known by its items: other devices may also be called "ram" (bfcobra, multigam crashed).
 	for tag, device in pairs(machine.devices) do
-		if device.shortname == "ram" then
+		if device.items["0/m_pointer"] and device.items["0/m_size"] then
 			local size  = emu.item(device.items["0/m_size"]):read(0)
 			local block = emu.item(device.items["0/m_pointer"])
 			if size <= REGION_MAX then
