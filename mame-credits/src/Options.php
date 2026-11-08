@@ -10,19 +10,23 @@ namespace LEDSpicerTools\MameCredits;
 final class Options {
 
 	public const USAGE = <<<'TXT'
-		Usage: discover.php [options] [-- extra MAME arguments]
+Usage: discover.php [options] [-- extra MAME arguments]
 
-		  --sets LIST     comma separated sets, or @FILE with one set per line (default: all)
-		  --present       only sets (or their parent) found in the rompath
-		  --force         run sets that already have a result
-		  --retry-errors  run sets whose result is an error
-		  --jobs N        parallel MAME processes (default: CPU count)
-		  --timeout S     wall clock seconds per set (default: 600)
-		  --seconds S     emulated seconds per set (default: 300)
-		  --data DIR      directory for results/ and cache/ (default: current directory)
-		  --help          this text
+  --sets LIST     comma separated sets, or @FILE with one set per line (default: all)
+  --present       only sets (or their parent) found in the rompath
+  --force         run sets that already have a result
+  --retry-errors  run sets whose result is an error
+  --verify        re-run successes not verified yet, checking only their own result
+  --dat           write credits.dat from the verified successes, run nothing
+  --jobs N        parallel MAME processes (default: CPU count)
+  --timeout S     wall clock seconds per set (default: 600)
+  --seconds S     emulated seconds per set (default: 300)
+  --status S      lowest MAME driver status run: good, imperfect or preliminary (default: imperfect);
+                  results of sets below it are removed, like those of ignored sets
+  --data DIR      directory for results/ and cache/ (default: current directory)
+  --help          this text
 
-		TXT;
+TXT;
 
 	/** @var string[] */
 	public array
@@ -33,6 +37,8 @@ final class Options {
 		$present     = false,
 		$force       = false,
 		$retryErrors = false,
+		$verify      = false,
+		$dat         = false,
 		$help        = false;
 
 	public int
@@ -40,7 +46,9 @@ final class Options {
 		$timeout = 600,
 		$seconds = 300;
 
-	public string $data = '.';
+	public string
+		$data   = '.',
+		$status = 'imperfect';
 
 	/**
 	 * @param string[] $args arguments without the program name.
@@ -55,10 +63,13 @@ final class Options {
 				'--present'      => $this->present = true,
 				'--force'        => $this->force = true,
 				'--retry-errors' => $this->retryErrors = true,
+				'--verify'       => $this->verify = true,
+				'--dat'          => $this->dat = true,
 				'--jobs'         => $this->jobs = self::number($arg, $args),
 				'--timeout'      => $this->timeout = self::number($arg, $args),
 				'--seconds'      => $this->seconds = self::number($arg, $args),
 				'--data'         => $this->data = self::value($arg, $args),
+				'--status'       => $this->status = self::status(self::value($arg, $args)),
 				'--help'         => $this->help = true,
 				default          => throw new \InvalidArgumentException("Unknown option: $arg"),
 			};
@@ -76,6 +87,12 @@ final class Options {
 		if (!ctype_digit($value) || $value === '0')
 			throw new \InvalidArgumentException("$option needs a positive number");
 		return (int) $value;
+	}
+
+	private static function status(string $value): string {
+		if (!in_array($value, Machine::STATUSES, true))
+			throw new \InvalidArgumentException('--status needs one of: ' . implode(', ', Machine::STATUSES));
+		return $value;
 	}
 
 	/**

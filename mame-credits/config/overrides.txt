@@ -1,0 +1,17 @@
+# Reviewed behaviour discovery cannot measure, applied over a set's discovered result.
+# One set per line: <set> <column>=<value> ...; columns are results.tsv columns.
+# A key may end in @<MAME version>: @0.264, @>0.264, @>=0.264, @<0.270, @<=0.270, @0.250-0.264;
+# a versioned line's values go over the key's general ones.
+# A set with an override that discovery found (status found or success) becomes success, reason override.
+
+# Coins buy health; each player's button 2 (Magic) joins, a slot per player.
+gauntlet start_mode=coin_buys_play credit_scope=per_player start1_field=P1_BUTTON2 start2_field=P2_BUTTON2
+
+# The coin starts the game; there is no start input (screenshots: Gun Fight's timer runs, Sea Wolf shows
+# TIME 61, Final Lap's race is on the starting grid right after the coin).
+gunfight start_mode=coin
+seawolf  start_mode=coin
+finallap start_mode=coin
+
+# Sells play time per coin; the player starts by pressing a game's start (PlayChoice-10 menu).
+nintendo/playch10.cpp start_mode=coin_buys_play

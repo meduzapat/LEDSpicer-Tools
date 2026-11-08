@@ -1,0 +1,25 @@
+# Run settings for sets that need other than the defaults; everything else uses the defaults.
+# One entry per line: <set, parent or driver source file> <name>=<value> ...; a set's own entry wins.
+# A key may end in @<MAME version>: @0.264, @>0.264, @>=0.264, @<0.270, @<=0.270, @0.250-0.264;
+# a versioned line's values go over the key's general ones.
+#   seconds     emulated seconds per run (default --seconds)
+#   timeout     wall clock seconds per run (default --timeout)
+#   boot        emulated seconds coins go in while looking for the counter (default 90)
+#   quiet_boot  emulated seconds booting without coins before the search (default only on a power cycle, 30)
+#   drc         0 runs MAME with -nodrc, the CPU interpreters instead of the recompilers (default 1)
+
+# CD, HDD and cassette loading takes minutes (timeouts in the 0.264 run); the DECO cassette loads for
+# about 3 emulated minutes before the game takes coins.
+konami/ksys573.cpp   seconds=900 timeout=1800 boot=300
+konami/djmain.cpp    seconds=900 timeout=1800 boot=300
+dataeast/decocass.cpp seconds=1500 quiet_boot=180
+
+# Coins during boot push credits to the limit, kept through a soft reset (altbeast, shdancer):
+# skip the first search that is known to fail.
+sega/segas16b.cpp    quiet_boot=30
+sega/segas18.cpp     quiet_boot=30
+
+# A soft reset (F3) once the game runs crashes the recompiled cores (segfault, heap corruption);
+# the interpreters reset fine and use the same RAM.
+konami/zr107.cpp@0.264 drc=0
+mausuke@0.264        drc=0

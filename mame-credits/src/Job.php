@@ -33,14 +33,18 @@ final class Job {
 
 	/**
 	 * @param string[] $command full MAME command line.
+	 * @param array<string, string> $env variables for discover.lua.
 	 */
 	public function __construct(
 		public readonly Machine $machine,
 		public readonly string $tempDir,
-		array $command,
-		int $timeout,
+		private readonly array $command,
+		private readonly array $env,
+		private readonly int $timeout,
+		public readonly bool $powerCycled = false,
 	) {
-		mkdir($tempDir, 0700, true);
+		if (!$powerCycled)
+			mkdir($tempDir, 0700, true);
 		$this->started = microtime(true);
 		$this->killAt  = $this->started + $timeout;
 		$this->process = proc_open(
@@ -48,7 +52,7 @@ final class Job {
 			[0 => ['file', '/dev/null', 'r'], 1 => ['file', "$tempDir/mame.log", 'w'], 2 => ['redirect', 1]],
 			$pipes,
 			null,
-			[...getenv(), 'MAMECREDITS_OUT' => $this->resultFile()]
+			[...getenv(), ...$env, 'MAMECREDITS_OUT' => $this->resultFile()]
 		);
 	}
 
@@ -68,6 +72,18 @@ final class Job {
 		$row = $this->row($status['signaled'] ? -1 : $status['exitcode']);
 		$row['elapsed'] = sprintf('%.1f', microtime(true) - $this->started);
 		return $row;
+	}
+
+	/**
+	 * The same run again on the NVRAM this one saved, like switching the cabinet off and on:
+	 * games that initialize their NVRAM on first boot (robotron) only work from the second, and
+	 * discover.lua lets it boot before coins (altbeast counts boot coins up to its credit limit).
+	 */
+	public function powerCycle(): self {
+		unlink($this->resultFile());
+		// Without hints: a hint can lead the first run astray (a parent's coin total, cencourt).
+		$env = [...array_diff_key($this->env, ['MAMECREDITS_HINTS' => true]), 'MAMECREDITS_POWER_CYCLED' => '1'];
+		return new self($this->machine, $this->tempDir, $this->command, $env, $this->timeout, true);
 	}
 
 	/**

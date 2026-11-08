@@ -14,6 +14,8 @@ final class Launcher {
 
 	private bool $interrupted = false;
 
+	private Hints $hints;
+
 	private string
 		$resultsDir,
 		$tempRoot;
@@ -22,6 +24,9 @@ final class Launcher {
 		private readonly Options $options,
 		private readonly Mame $mame,
 		private readonly string $script,
+		private readonly Overrides $overrides,
+		private readonly Rules $ignore,
+		private readonly Tuning $tuning,
 	) {
 		$this->resultsDir = "{$options->data}/results/{$mame->folder}";
 		$this->tempRoot   = sys_get_temp_dir() . '/mame-credits-' . getmypid();
@@ -38,38 +43,67 @@ final class Launcher {
 				mkdir($directory, 0755, true);
 		}
 
-		$machines = Index::load($this->mame, $cache);
-		$results  = new Results("$this->resultsDir/results.tsv");
-		$queue    = [];
+		$machines    = Index::load($this->mame, $cache);
+		$results     = new Results("$this->resultsDir/results.tsv");
+		if ($this->options->dat) {
+			Dat::write("$this->resultsDir/credits.dat", $results->rows(), $machines, $this->mame->build);
+			echo "$this->resultsDir/credits.dat\n";
+			rmdir($this->tempRoot);
+			return 0;
+		}
+		$this->hints = new Hints($machines, "{$this->options->data}/results", $this->mame->folder, $results);
+		$queue       = [];
+		// Skipped sets are counted, not stored: their reason comes from the index on every run.
+		// Keys of numeric set names ("1942") are integers: names come from the rows.
+		foreach ($results->rows() as $row) {
+			if ($this->skipReason($machines[$row['set']]) !== null)
+				$results->remove($row['set']);
+		}
+		$skipped = [];
 		foreach ($this->select($machines) as $machine) {
-			if (!$this->options->force && !$this->isRetry($results->status($machine->name)))
-				continue;
-			$reason = $machine->skipReason();
-			if ($reason === null)
+			$reason = $this->skipReason($machine);
+			if ($reason !== null) {
+				$key           = Status::Skipped->value . ":$reason";
+				$skipped[$key] = ($skipped[$key] ?? 0) + 1;
+			}
+			elseif ($this->isQueued($results->row($machine->name))) {
 				$queue[] = $machine;
-			else
-				$results->add(['set' => $machine->name, 'status' => Status::Skipped->value, 'reason' => $reason, 'mame_version' => $this->mame->build]);
+			}
 		}
 
 		pcntl_async_signals(true);
 		foreach ([SIGINT, SIGTERM] as $signal)
 			pcntl_signal($signal, fn() => $this->interrupted = true);
 
+		// Parents first: their results become their clones' hints.
+		usort($queue, fn(Machine $a, Machine $b): int => ($a->cloneof !== '') <=> ($b->cloneof !== ''));
 		$this->runQueue($queue, $results);
 		$results->save();
 		rmdir($this->tempRoot);
 
-		foreach ($results->summary() as $key => $count)
+		$summary = [...$results->summary(), ...$skipped];
+		ksort($summary);
+		foreach ($summary as $key => $count)
 			printf("%8d  %s\n", $count, $key);
 		printf("Elapsed %.1fs%s\n", microtime(true) - $begin, $this->interrupted ? ', interrupted' : '');
 		return $this->interrupted ? 130 : 0;
 	}
 
+	private function skipReason(Machine $machine): ?string {
+		return $machine->skipReason($this->options->status) ?? $this->ignore->lookup($machine)['cause'] ?? null;
+	}
+
 	/**
-	 * Whether a set with this previous status runs again; null means never run.
+	 * Whether a set with this previous result (null: never run) runs; --verify runs unverified successes only.
+	 *
+	 * @param array<string, string>|null $row
 	 */
-	private function isRetry(?string $status): bool {
-		return $status === null || ($this->options->retryErrors && $status === Status::Error->value);
+	private function isQueued(?array $row): bool {
+		if ($this->options->verify)
+			return $row !== null && $row['status'] === Status::Success->value && $row['verified'] !== 'yes';
+		return $row === null
+			|| $this->options->force
+			|| ($this->options->retryErrors && $row['status'] === Status::Error->value);
 	}
 
 	/**
@@ -119,8 +153,8 @@ final class Launcher {
 		$done    = 0;
 		$running = [];
 		while (($queue && !$this->interrupted) || $running) {
-			while ($queue && !$this->interrupted && count($running) < $this->options->jobs)
-				$running[] = $this->start(array_shift($queue));
+			while (!$this->interrupted && count($running) < $this->options->jobs && ($next = self::next($queue, $running)) !== null)
+				$running[] = $this->start($next, $results);
 			usleep((int) (self::POLL_INTERVAL * 1e6));
 			foreach ($running as $index => $job) {
 				if ($this->interrupted)
@@ -129,6 +163,14 @@ final class Launcher {
 				if ($row === null)
 					continue;
 				unset($running[$index]);
+				// Also when coins went in but no credit was spent: coins during boot may have confused the search.
+				if (!$this->interrupted && !$job->powerCycled && in_array($row['reason'], ['no_reaction', 'coin_buys_play', 'no_start'], true)) {
+					$running[] = $job->powerCycle();
+					continue;
+				}
+				// Still deaf after a power cycle: waiting for a first-boot setup (calibration, settings), or broken.
+				if ($job->powerCycled && $row['reason'] === 'no_reaction')
+					$row['reason'] = 'needs_setup';
 				// interrupted runs are incomplete, they are run again next time
 				if (!$this->interrupted) {
 					$this->finish($job, $row, $results);
@@ -139,13 +181,37 @@ final class Launcher {
 		}
 	}
 
-	private function start(Machine $machine): Job {
+	/**
+	 * Takes the first queued set whose parent is neither queued nor running, null when all wait.
+	 *
+	 * @param Machine[] $queue
+	 * @param Job[] $running
+	 */
+	private static function next(array &$queue, array $running): ?Machine {
+		$pending = array_flip(array_map(fn(Machine $m): string => $m->name, $queue));
+		foreach ($running as $job)
+			$pending[$job->machine->name] = true;
+		foreach ($queue as $index => $machine) {
+			if (!isset($pending[$machine->cloneof])) {
+				unset($queue[$index]);
+				return $machine;
+			}
+		}
+		return null;
+	}
+
+	private function start(Machine $machine, Results $results): Job {
 		$tempDir = "$this->tempRoot/{$machine->name}";
+		$env     = $this->options->verify
+			? ['MAMECREDITS_MODE' => 'verify', 'MAMECREDITS_HINTS' => 'verify,' . Hints::location($results->row($machine->name))]
+			: ['MAMECREDITS_HINTS' => $this->hints->for($machine, $results)];
+		[$seconds, $timeout] = $this->tuning->limits($machine, $this->options->seconds, $this->options->timeout);
 		return new Job(
 			$machine,
 			$tempDir,
-			$this->mame->command($machine, $tempDir, $this->script, $this->options->seconds, $this->options->extra),
-			$this->options->timeout
+			$this->mame->command($machine, $tempDir, $this->script, $seconds, [...$this->tuning->arguments($machine), ...$this->options->extra]),
+			[...Mame::RUN_ENV, ...$env, 'MAMECREDITS_TUNING' => $this->tuning->lua($machine)],
+			$timeout
 		);
 	}
 
@@ -155,7 +221,22 @@ final class Launcher {
 	 * @param array<string, string> $row
 	 */
 	private function finish(Job $job, array $row, Results $results): void {
-		$results->add([...$row, 'mame_version' => $this->mame->build]);
+		if ($this->options->verify) {
+			// The stored result stands; the run only confirms it, at the same location.
+			$stored = $results->row($row['set']);
+			$row    = $this->overrides->apply($row, $job->machine);
+			$same   = $row['status'] === Status::Success->value && Hints::location($row) === Hints::location($stored);
+			$results->add([...$stored, 'verified' => $same ? 'yes' : 'no']);
+			return;
+		}
+		$family = $this->hints->family($job->machine);
+		$row    = [
+			...$this->overrides->apply($row, $job->machine),
+			'family'      => $family !== '' ? $family : $job->machine->cloneof,
+			'power_cycle' => $job->powerCycled ? 'yes' : 'no',
+		];
+		$this->hints->record($row);
+		$results->add($row);
 		$log = "$this->resultsDir/logs/{$row['set']}.log";
 		if ($row['status'] === Status::Error->value)
 			rename($job->logFile(), $log);

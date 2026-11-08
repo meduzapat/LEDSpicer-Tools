@@ -11,6 +11,8 @@
 		<input players="2" coins="2"/>
 		<driver status="good" emulation="good" savestate="supported"/>
 	</machine>
+	<machine name="nvinit" sourcefile="mock/other.cpp"><input players="1" coins="1"/></machine>
+	<machine name="deaf" sourcefile="mock/other.cpp"><input players="1" coins="1"/></machine>
 	<machine name="missing" sourcefile="mock/other.cpp"><input players="1" coins="1"/></machine>
 	<machine name="crash" sourcefile="mock/other.cpp"><input players="1" coins="1"/></machine>
 	<machine name="hang" sourcefile="mock/other.cpp"><input players="1" coins="1"/></machine>
@@ -19,4 +21,7 @@
 	<machine name="adevice" sourcefile="mock/dev.cpp" isdevice="yes" runnable="no"/>
 	<machine name="mech" sourcefile="mock/other.cpp" ismechanical="yes"><input players="1" coins="1"/></machine>
 	<machine name="console" sourcefile="mock/other.cpp"><input players="2"/></machine>
+	<machine name="broken" sourcefile="mock/other.cpp"><input players="1" coins="1"/><driver status="preliminary" emulation="preliminary" savestate="unsupported"/></machine>
+	<machine name="poker" sourcefile="mock/other.cpp"><input players="1" coins="1"><control type="gambling"/></input></machine>
+	<machine name="mahjong" sourcefile="mock/other.cpp"><input players="1" coins="1"><control type="mahjong"/><control type="hanafuda"/></input></machine>
 </mame>

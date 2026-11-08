@@ -33,7 +33,7 @@ final class OptionsTest extends TestCase {
 	}
 
 	public static function invalid(): array {
-		return [[['--nope']], [['--jobs']], [['--jobs', '0']], [['--timeout', '-1']]];
+		return [[['--nope']], [['--jobs']], [['--jobs', '0']], [['--timeout', '-1']], [['--status', 'working']]];
 	}
 
 	#[DataProvider('invalid')]

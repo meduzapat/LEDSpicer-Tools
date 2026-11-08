@@ -19,6 +19,7 @@ Each tool lives in its own directory and is independent of LEDSpicer's code.
 ```bash
 composer install
 vendor/bin/phpunit
+find tests -name '*Test.lua' -print0 | xargs -0 -n1 lua5.4
 ```
 
 Tests mirror the tool directories under `tests/`; reusable mocks are in `tests/mocks/`, helpers in `tests/tools/`.
