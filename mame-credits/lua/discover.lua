@@ -235,6 +235,21 @@ local function regions()
 			end
 		end
 	end
+	-- RAM devices: memory a CPU installs at startup instead of mapping it (main RAM of the PlayStation based
+	-- boards: ZN, Namco System 11/12, System 573), read through their save state items like cheatfind does.
+	for tag, device in pairs(machine.devices) do
+		if device.shortname == "ram" then
+			local size  = emu.item(device.items["0/m_size"]):read(0)
+			local block = emu.item(device.items["0/m_pointer"])
+			if size <= REGION_MAX then
+				list[#list + 1] = {
+					cpu = tag, space = "ram", first = 0, last = size - 1, rank = tag:find("^:maincpu:") and 0 or 2,
+					read = function() return block:read_block(0, size) end,
+					peek = function(offset) return block:read(offset - 1) end,
+				}
+			end
+		end
+	end
 	for tag, share in pairs(machine.memory.shares) do
 		if not used[tag] and share.size <= SHARE_MAX then
 			list[#list + 1] = {

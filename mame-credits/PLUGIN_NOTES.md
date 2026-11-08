@@ -11,6 +11,8 @@ What discovery found that the runtime plugin (reading `credits.dat`) must handle
   - `coin_buys_play`: coins buy health or time; the join input (from `credits.dat`) starts a player.
 - **Locations:** `space=share` means `cpu` is a memory share tag and `address` an offset in it
   (`manager.machine.memory.shares[tag]:read_u8(offset)`); a memory mapper moves those at runtime.
+  `space=ram` means `cpu` is a RAM device tag (main RAM a CPU installs at startup, PlayStation based
+  boards) and `address` an offset: `emu.item(manager.machine.devices[tag].items["0/m_pointer"]):read(offset)`.
 - **Encodings:** `bin`, `bcd`, `any` (never seen above 9: read as binary), `digits` / `digits_le`
   (one decimal digit per byte, size 2).
 - **Per player:** `credits1=`/`credits2=` when each player has a counter (TMNT); coinage can differ per
