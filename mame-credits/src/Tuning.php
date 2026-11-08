@@ -6,7 +6,8 @@ namespace LEDSpicerTools\MameCredits;
 
 /**
  * Run settings for sets that need other than the defaults, see config/tuning.txt.
- * seconds and timeout replace the --seconds and --timeout limits; the rest reach discover.lua.
+ * seconds and timeout replace the --seconds and --timeout limits, drc=0 runs MAME with -nodrc;
+ * the rest reach discover.lua.
  */
 final class Tuning {
 
@@ -19,7 +20,7 @@ final class Tuning {
 		$this->rules = new Rules($path, true, $version);
 		foreach ($this->rules->entries() as $key => $values) {
 			foreach ($values as $name => $value) {
-				if (!in_array($name, ['seconds', 'timeout', ...self::LUA], true) || !ctype_digit($value))
+				if (!in_array($name, ['seconds', 'timeout', 'drc', ...self::LUA], true) || !ctype_digit($value))
 					throw new \UnexpectedValueException("$path: $key: unknown setting or not a number: $name=$value");
 			}
 		}
@@ -31,6 +32,13 @@ final class Tuning {
 	public function limits(Machine $machine, int $seconds, int $timeout): array {
 		$values = $this->rules->lookup($machine);
 		return [(int) ($values['seconds'] ?? $seconds), (int) ($values['timeout'] ?? $timeout)];
+	}
+
+	/**
+	 * @return string[] MAME arguments for the machine.
+	 */
+	public function arguments(Machine $machine): array {
+		return ($this->rules->lookup($machine)['drc'] ?? '1') === '0' ? ['-nodrc'] : [];
 	}
 
 	/**

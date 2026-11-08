@@ -26,6 +26,14 @@ final class TuningTest extends TestCase {
 		$this->assertSame('', $tuning->lua($other));
 	}
 
+	public function testDrcOffAddsNodrc(): void {
+		$tuning = $this->tuning("x/slow.cpp drc=0\n");
+		$slow   = new Machine('slow', 'x/slow.cpp', '', '', '', 'good', 2, 2, false, false, false, true, []);
+		$other  = new Machine('other', 'x/fast.cpp', '', '', '', 'good', 2, 2, false, false, false, true, []);
+		$this->assertSame(['-nodrc'], $tuning->arguments($slow));
+		$this->assertSame([], $tuning->arguments($other));
+	}
+
 	public function testUnknownOrNonNumericSettingFails(): void {
 		foreach (["game speed=2\n", "game boot=fast\n"] as $content) {
 			try {

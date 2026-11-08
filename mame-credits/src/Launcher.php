@@ -209,7 +209,7 @@ final class Launcher {
 		return new Job(
 			$machine,
 			$tempDir,
-			$this->mame->command($machine, $tempDir, $this->script, $seconds, $this->options->extra),
+			$this->mame->command($machine, $tempDir, $this->script, $seconds, [...$this->tuning->arguments($machine), ...$this->options->extra]),
 			[...Mame::RUN_ENV, ...$env, 'MAMECREDITS_TUNING' => $this->tuning->lua($machine)],
 			$timeout
 		);
