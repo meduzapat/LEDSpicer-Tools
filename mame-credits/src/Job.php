@@ -81,7 +81,8 @@ final class Job {
 	 */
 	public function powerCycle(): self {
 		unlink($this->resultFile());
-		$env = [...$this->env, 'MAMECREDITS_POWER_CYCLED' => '1'];
+		// Without hints: a hint can lead the first run astray (a parent's coin total, cencourt).
+		$env = [...array_diff_key($this->env, ['MAMECREDITS_HINTS' => true]), 'MAMECREDITS_POWER_CYCLED' => '1'];
 		return new self($this->machine, $this->tempDir, $this->command, $env, $this->timeout, true);
 	}
 

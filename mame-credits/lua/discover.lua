@@ -204,7 +204,9 @@ local function regions()
 			for _, entry in ipairs(space.map.entries) do
 				local held = entry.share and shares[entry.share:match("[^:]+$")]
 				if isRam(entry) and not (held and used[held.tag]) and entry.address_end - entry.address_start < REGION_MAX then
-					if held and held.share.size > SHARE_MAX then
+					-- Shares are counted in bytes: only a byte addressed space (shift 0) lines up with them
+					-- (tickee's TMS34010 addresses bits).
+					if held and (held.share.size > SHARE_MAX or space.shift ~= 0) then
 						used[held.tag], held = true, nil
 					end
 					local first, last = entry.address_start, entry.address_end
